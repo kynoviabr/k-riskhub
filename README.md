@@ -40,5 +40,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
 OAuth callback URL for Supabase providers:
 
 ```text
-http://localhost:3000/auth/callback
+http://localhost:3000
 ```
