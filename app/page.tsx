@@ -22,6 +22,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { useState } from "react";
+import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 const projects = [
   {
@@ -110,6 +111,83 @@ function StatusPill({ status }: { status: string }) {
 
 export default function Home() {
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function signInWithOAuth(provider: "azure" | "google") {
+    setAuthMessage("");
+
+    if (!isSupabaseConfigured) {
+      setIsSignedIn(true);
+      return;
+    }
+
+    setIsLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+        scopes: provider === "azure" ? "email" : undefined
+      }
+    });
+
+    if (error) {
+      setAuthMessage(error.message);
+      setIsLoading(false);
+    }
+  }
+
+  async function signInWithEmail() {
+    setAuthMessage("");
+
+    if (!isSupabaseConfigured) {
+      setIsSignedIn(true);
+      return;
+    }
+
+    if (!email || !password) {
+      setAuthMessage("Informe e-mail e senha.");
+      return;
+    }
+
+    setIsLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setAuthMessage(error.message);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsSignedIn(true);
+    setIsLoading(false);
+  }
+
+  async function resetPassword() {
+    setAuthMessage("");
+
+    if (!isSupabaseConfigured) {
+      setAuthMessage("Preencha a anon key do Supabase para testar reset de senha.");
+      return;
+    }
+
+    if (!email) {
+      setAuthMessage("Informe seu e-mail antes de solicitar o reset.");
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback`
+    });
+
+    setAuthMessage(error ? error.message : "Enviamos o link de reset para o e-mail informado.");
+  }
 
   return (
     <main className={isSignedIn ? "page authenticated" : "page login-only"}>
@@ -123,11 +201,11 @@ export default function Home() {
           </div>
 
           <div className="login-actions">
-            <button className="oauth-button primary-oauth" onClick={() => setIsSignedIn(true)}>
+            <button className="oauth-button primary-oauth" disabled={isLoading} onClick={() => signInWithOAuth("azure")}>
               <PanelsTopLeft size={18} />
               Entrar com Microsoft
             </button>
-            <button className="oauth-button" onClick={() => setIsSignedIn(true)}>
+            <button className="oauth-button" disabled={isLoading} onClick={() => signInWithOAuth("google")}>
               <Mail size={18} />
               Entrar com Google
             </button>
@@ -136,19 +214,35 @@ export default function Home() {
           <div className="field-stack">
             <label>
               E-mail
-              <input type="email" placeholder="voce@empresa.com" />
+              <input
+                type="email"
+                placeholder="voce@empresa.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
             </label>
             <label>
               Senha
-              <input type="password" placeholder="Senha" />
+              <input
+                type="password"
+                placeholder="Senha"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
             </label>
-            <button className="button full" onClick={() => setIsSignedIn(true)}>
+            <button className="button full" disabled={isLoading} onClick={signInWithEmail}>
               <KeyRound size={16} />
-              Entrar
+              {isLoading ? "Entrando..." : "Entrar"}
             </button>
-            <a className="reset-link" href="#">
+            <button className="reset-link" type="button" onClick={resetPassword}>
               Esqueci minha senha
-            </a>
+            </button>
+            {authMessage ? <p className="auth-message">{authMessage}</p> : null}
+            {!isSupabaseConfigured ? (
+              <p className="auth-note">
+                Preview local ativo. Preencha a anon key para autenticar pelo Supabase.
+              </p>
+            ) : null}
           </div>
         </div>
       </section>

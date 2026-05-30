@@ -27,3 +27,18 @@ K-RiskHub is a modern SaaS application for project risk management.
 npm install
 npm run dev
 ```
+
+## Environment
+
+Create `.env.local` from `.env.example` and fill the Supabase anon/publishable key:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://eacazrjltglfmkometgi.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+```
+
+OAuth callback URL for Supabase providers:
+
+```text
+http://localhost:3000/auth/callback
+```

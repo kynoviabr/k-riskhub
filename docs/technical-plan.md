@@ -21,6 +21,14 @@ Supported methods:
 
 Microsoft should be prioritized for B2B clients because many organizations use Microsoft 365 and Microsoft Entra ID.
 
+Supabase project URL:
+
+```text
+https://eacazrjltglfmkometgi.supabase.co
+```
+
+Microsoft OAuth uses Supabase provider `azure` and must request the `email` scope. The Supabase callback route in this app is `/auth/callback`.
+
 ## Initial Data Model
 
 Core tables:
