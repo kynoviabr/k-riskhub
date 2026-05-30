@@ -151,6 +151,19 @@ export default function Home() {
   }, [profile]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthErrorCode = params.get("error_code");
+    const oauthErrorDescription = params.get("error_description");
+
+    if (oauthErrorCode) {
+      setAuthMessage(
+        oauthErrorCode === "bad_oauth_state"
+          ? "O login expirou antes de concluir. Tente entrar novamente."
+          : oauthErrorDescription?.replaceAll("+", " ") || "Nao foi possivel concluir o login."
+      );
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
     void loadSession();
   }, []);
 
