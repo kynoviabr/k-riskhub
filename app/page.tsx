@@ -48,6 +48,7 @@ import {
   projectPhaseOptions,
   projectStatusLabels
 } from "@/lib/domain";
+import { ClientsModule } from "@/components/clients-module";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 type PendingDelete =
@@ -1425,145 +1426,34 @@ export default function Home() {
                 </article>
               </>
             ) : isClientsView ? (
-              <>
-                <div className="metric-grid compact-metrics">
-                  <article className="metric">
-                    <Building2 size={15} />
-                    <span>{clientStatusView === "active" ? "Clientes ativos" : "Clientes inativos"}</span>
-                    <strong>{clients.length}</strong>
-                  </article>
-                  <article className="metric">
-                    <ListChecks size={15} />
-                    <span>Status</span>
-                    <strong>{clientStatusView === "active" ? "Ativo" : "Inativo"}</strong>
-                  </article>
-                  <article className="metric">
-                    <BriefcaseBusiness size={15} />
-                    <span>Com projetos</span>
-                    <strong>0</strong>
-                  </article>
-                  <article className="metric">
-                    <TriangleAlert size={15} />
-                    <span>Com riscos críticos</span>
-                    <strong>0</strong>
-                  </article>
-                </div>
-
-                <article className="surface">
-                  <div className="surface-header">
-                    <div>
-                      <h3>Clientes</h3>
-                      <p>{clientStatusView === "active"
-                        ? "Cadastro corporativo para vincular projetos, responsáveis e permissões."
-                        : "Clientes removidos logicamente, mantidos para consulta e auditoria."}</p>
-                    </div>
-                    <div className="surface-actions">
-                      <div aria-label="Filtrar clientes" className="segmented-control">
-                        <button
-                          aria-pressed={clientStatusView === "active"}
-                          className={clientStatusView === "active" ? "active" : ""}
-                          onClick={() => setClientStatusView("active")}
-                          type="button"
-                        >
-                          Ativos
-                        </button>
-                        <button
-                          aria-pressed={clientStatusView === "inactive"}
-                          className={clientStatusView === "inactive" ? "active" : ""}
-                          onClick={() => setClientStatusView("inactive")}
-                          type="button"
-                        >
-                          Inativos
-                        </button>
-                      </div>
-                      <button className="ghost-button" onClick={loadClients}>
-                        Atualizar
-                      </button>
-                    </div>
-                  </div>
-
-                  {clientsError && !isClientModalOpen ? <p className="auth-message">{clientsError}</p> : null}
-                  {isClientsLoading ? (
-                    <div className="empty-state">
-                      <Building2 size={20} />
-                      <strong>Carregando clientes</strong>
-                      <span>Consultando cadastros liberados para o seu perfil.</span>
-                    </div>
-                  ) : clients.length === 0 ? (
-                    <div className="empty-state">
-                      <Building2 size={20} />
-                      <strong>{clientStatusView === "active" ? "Nenhum cliente ativo" : "Nenhum cliente inativo"}</strong>
-                      <span>{clientStatusView === "active"
-                        ? "Crie o primeiro cliente para começar a estruturar projetos e vínculos."
-                        : "Clientes removidos aparecerão aqui para consulta administrativa."}</span>
-                    </div>
-                  ) : (
-                    <div className="table clients-table">
-                      <div className="table-row table-head clients-row">
-                        <span>Cliente</span>
-                        <span>Contato principal</span>
-                        <span>Cargo</span>
-                        <span>E-mail</span>
-                        <span>Status</span>
-                        <span>Telefone</span>
-                        <span>Ações</span>
-                      </div>
-                      {clients.map((client) => (
-                        (() => {
-                          const primaryContact = client.client_contacts?.find((contact) => contact.is_primary)
-                            || client.client_contacts?.[0];
-
-                          return (
-                            <div className="table-row clients-row" key={client.id}>
-                              <span>
-                                <button className="link-button" onClick={() => openClientDetails(client)} type="button">
-                                  {client.name}
-                                </button>
-                                <small>{client.notes || "Sem observações"}</small>
-                              </span>
-                              <span>{primaryContact?.name || "Sem contato"}</span>
-                              <span>{primaryContact?.role_title || "Não informado"}</span>
-                              <span>{primaryContact?.email || "Não informado"}</span>
-                              <span>
-                                <StatusPill status={client.deleted_at ? "Inativo" : "Ativo"} />
-                              </span>
-                              <span>{primaryContact?.phone || "Não informado"}</span>
-                              <span className="table-actions">
-                                <button
-                                  aria-label={`Ver detalhes de ${client.name}`}
-                                  className="icon-button small-icon-button"
-                                  onClick={() => openClientDetails(client)}
-                                  title="Ver detalhes"
-                                  type="button"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                                {!client.deleted_at ? (
-                                  <>
-                                    <button className="ghost-button compact-button" onClick={() => openEditClientModal(client)} type="button">
-                                      <Pencil size={14} />
-                                      Editar
-                                    </button>
-                                    <button
-                                      aria-label={`Remover ${client.name}`}
-                                      className="icon-button small-icon-button danger-icon-button"
-                                      onClick={() => requestDeleteClient(client)}
-                                      title="Remover cliente"
-                                      type="button"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </>
-                                ) : null}
-                              </span>
-                            </div>
-                          );
-                        })()
-                      ))}
-                    </div>
-                  )}
-                </article>
-              </>
+              <ClientsModule
+                clients={clients}
+                clientsError={clientsError}
+                clientStatusView={clientStatusView}
+                isClientsLoading={isClientsLoading}
+                isClientModalOpen={isClientModalOpen}
+                selectedClient={selectedClient}
+                editingClientId={editingClientId}
+                clientForm={clientForm}
+                onStatusViewChange={setClientStatusView}
+                onLoadClients={loadClients}
+                onOpenClientDetails={openClientDetails}
+                onCloseClientDetails={() => setSelectedClient(null)}
+                onOpenEditClientModal={(client) => {
+                  setSelectedClient(null);
+                  openEditClientModal(client);
+                }}
+                onRequestDeleteClient={requestDeleteClient}
+                onCloseClientModal={() => {
+                  resetClientForm();
+                  setIsClientModalOpen(false);
+                }}
+                onClientFormChange={setClientForm}
+                onAddClientContact={addClientContact}
+                onRemoveClientContact={removeClientContact}
+                onUpdateClientContact={updateClientContact}
+                onSaveClient={saveClient}
+              />
             ) : isProfessionalsView ? (
               <>
                 <div className="metric-grid compact-metrics">
@@ -1956,87 +1846,6 @@ export default function Home() {
           </section>
         </div>
       ) : null}
-      {selectedClient ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setSelectedClient(null)}>
-          <section
-            aria-labelledby="client-details-title"
-            className="modal client-details-modal"
-            role="dialog"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div>
-                <p className="eyebrow">Cliente</p>
-                <h3 id="client-details-title">{selectedClient.name}</h3>
-              </div>
-              <button className="icon-button" aria-label="Fechar" onClick={() => setSelectedClient(null)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="detail-summary">
-              <div>
-                <span>Status</span>
-                <strong>{selectedClient.status === "active" ? "Ativo" : "Inativo"}</strong>
-              </div>
-              <div>
-                <span>Contatos</span>
-                <strong>{selectedClient.client_contacts?.length || 0}</strong>
-              </div>
-              <div>
-                <span>Criado em</span>
-                <strong>{selectedClient.created_at ? new Date(selectedClient.created_at).toLocaleDateString("pt-BR") : "Sem data"}</strong>
-              </div>
-            </div>
-
-            <div className="detail-block">
-              <span>Observações</span>
-              <p>{selectedClient.notes || "Sem observações cadastradas."}</p>
-            </div>
-
-            <div className="modal-header detail-section-header">
-              <div>
-                <p className="eyebrow">Contatos</p>
-                <h3>Dados de contato</h3>
-              </div>
-              <button className="ghost-button compact-button" onClick={() => {
-                setSelectedClient(null);
-                openEditClientModal(selectedClient);
-              }} type="button">
-                <Pencil size={14} />
-                Editar
-              </button>
-            </div>
-
-            <div className="contact-detail-list">
-              {selectedClient.client_contacts?.length ? (
-                selectedClient.client_contacts.map((contact) => (
-                  <article className="contact-detail-card" key={contact.id}>
-                    <div>
-                      <strong>{contact.name}</strong>
-                      <span>{contact.role_title || "Cargo não informado"}</span>
-                    </div>
-                    <div>
-                      <span>E-mail</span>
-                      <strong>{contact.email || "Não informado"}</strong>
-                    </div>
-                    <div>
-                      <span>Telefone</span>
-                      <strong>{contact.phone || "Não informado"}</strong>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="empty-state">
-                  <CircleUserRound size={20} />
-                  <strong>Nenhum contato cadastrado</strong>
-                  <span>Use Editar para adicionar contatos ao cliente.</span>
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-      ) : null}
       {selectedProject ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setSelectedProject(null)}>
           <section
@@ -2253,126 +2062,6 @@ export default function Home() {
               >
                 <Trash2 size={16} />
                 {isClientsLoading || isProjectsLoading || isProfessionalsLoading ? "Removendo..." : "Remover"}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-      {isClientModalOpen ? (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={() => {
-            resetClientForm();
-            setIsClientModalOpen(false);
-          }}
-        >
-          <section
-            aria-labelledby="client-modal-title"
-            className="modal"
-            role="dialog"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div>
-                <p className="eyebrow">Clientes</p>
-                <h3 id="client-modal-title">{editingClientId ? "Editar cliente" : "Novo cliente"}</h3>
-              </div>
-              <button
-                className="icon-button"
-                aria-label="Fechar"
-                onClick={() => {
-                  resetClientForm();
-                  setIsClientModalOpen(false);
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="field-stack modal-form">
-              <label>
-                Nome do cliente
-                <input
-                  aria-invalid={Boolean(clientsError && !clientForm.name.trim())}
-                  required
-                  value={clientForm.name}
-                  onChange={(event) => setClientForm((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="Empresa ABC"
-                />
-              </label>
-              <label>
-                Observações
-                <textarea
-                  value={clientForm.notes}
-                  onChange={(event) => setClientForm((current) => ({ ...current, notes: event.target.value }))}
-                  placeholder="Informações internas do cliente"
-                />
-              </label>
-              <div className="form-section-header">
-                <div>
-                  <strong>Contatos</strong>
-                  <span>O primeiro contato será exibido na tela principal.</span>
-                </div>
-                <button className="ghost-button compact-button" type="button" onClick={addClientContact}>
-                  <Plus size={15} />
-                  Adicionar
-                </button>
-              </div>
-              <div className="contact-form-list">
-                {clientForm.contacts.map((contact, index) => (
-                  <div className="contact-form-card" key={`contact-${index}`}>
-                    <div className="contact-form-title">
-                      <strong>Contato {index + 1}</strong>
-                      <button className="icon-button small-icon-button" type="button" aria-label="Remover contato" onClick={() => removeClientContact(index)}>
-                        <X size={15} />
-                      </button>
-                    </div>
-                    <label>
-                      Nome
-                      <input
-                        required
-                        value={contact.name}
-                        onChange={(event) => updateClientContact(index, "name", event.target.value)}
-                        placeholder="Nome do contato"
-                      />
-                    </label>
-                    <div className="form-grid two-columns">
-                      <label>
-                        Cargo
-                        <input
-                          value={contact.role_title}
-                          onChange={(event) => updateClientContact(index, "role_title", event.target.value)}
-                          placeholder="Diretor, PMO, Sponsor"
-                        />
-                      </label>
-                      <label>
-                        Telefone
-                        <input
-                          type="tel"
-                          inputMode="tel"
-                          value={contact.phone}
-                          onChange={(event) => updateClientContact(index, "phone", event.target.value)}
-                          placeholder="+55 11 99999-9999"
-                        />
-                      </label>
-                    </div>
-                    <label>
-                      E-mail
-                      <input
-                        type="email"
-                        value={contact.email}
-                        onChange={(event) => updateClientContact(index, "email", event.target.value)}
-                        placeholder="contato@empresa.com"
-                      />
-                    </label>
-                  </div>
-                ))}
-              </div>
-              {clientsError ? <p className="auth-message modal-message">{clientsError}</p> : null}
-              <button className="button full" disabled={isClientsLoading} onClick={saveClient} type="button">
-                <Plus size={16} />
-                {isClientsLoading ? "Salvando..." : editingClientId ? "Salvar alterações" : "Salvar cliente"}
               </button>
             </div>
           </section>
