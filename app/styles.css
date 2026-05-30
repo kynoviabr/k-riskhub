@@ -92,6 +92,22 @@ a {
   backdrop-filter: blur(18px);
 }
 
+.loading-panel {
+  justify-items: center;
+  text-align: center;
+}
+
+.loading-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--primary);
+  color: white;
+  font-weight: 800;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: var(--primary-2);
@@ -459,6 +475,10 @@ small {
   margin: 16px 0;
 }
 
+.profile-card.large {
+  margin: 0;
+}
+
 .avatar {
   display: grid;
   width: 40px;
@@ -468,6 +488,102 @@ small {
   background: var(--primary-soft);
   color: var(--primary);
   font-weight: 800;
+}
+
+.large-avatar {
+  width: 58px;
+  height: 58px;
+  font-size: 18px;
+}
+
+.profile-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+}
+
+.profile-summary {
+  display: grid;
+  gap: 20px;
+}
+
+.profile-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profile-detail-grid div {
+  display: grid;
+  gap: 4px;
+  min-height: 70px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.profile-detail-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.approval-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--primary-soft);
+}
+
+.approval-note svg {
+  flex: 0 0 auto;
+  color: var(--primary-2);
+}
+
+.approval-note p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.permission-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.permission-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: #536071;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.empty-state {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.empty-state svg {
+  color: var(--primary-2);
+}
+
+.empty-state strong {
+  color: var(--text);
 }
 
 .profile-list {
@@ -553,7 +669,12 @@ small {
   }
 
   .metric-grid,
+  .profile-hero,
   .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-detail-grid {
     grid-template-columns: 1fr;
   }
 

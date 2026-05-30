@@ -18,11 +18,22 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Sparkles,
   TriangleAlert,
   UsersRound
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+
+type Profile = {
+  id: string;
+  full_name: string | null;
+  email: string;
+  avatar_url: string | null;
+  role: "admin" | "gp" | "client" | "portfolio_manager" | "director";
+  is_active: boolean;
+  last_seen_at: string | null;
+};
 
 const projects = [
   {
@@ -101,6 +112,22 @@ const nav = [
   { label: "Administracao", icon: ShieldCheck }
 ];
 
+const roleLabels: Record<Profile["role"], string> = {
+  admin: "Admin",
+  gp: "GP",
+  client: "Cliente",
+  portfolio_manager: "Gerente de Portfolio",
+  director: "Diretor"
+};
+
+const roleDescriptions: Record<Profile["role"], string> = {
+  admin: "Acesso administrativo completo aos clientes, projetos, usuarios e configuracoes.",
+  gp: "Acesso aos projetos em que voce atua como gerente de projeto.",
+  client: "Acesso de leitura aos projetos vinculados ao seu cliente.",
+  portfolio_manager: "Visao consolidada dos clientes e projetos sob sua gestao.",
+  director: "Visao executiva dos indicadores e riscos do portfolio."
+};
+
 function SeverityBadge({ label }: { label: string }) {
   return <span className={`badge badge-${label.toLowerCase()}`}>{label}</span>;
 }
@@ -111,10 +138,62 @@ function StatusPill({ status }: { status: string }) {
 
 export default function Home() {
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+
+  const visibleNav = useMemo(() => {
+    if (!profile || profile.role === "admin") return nav;
+    return nav.filter((item) => item.label !== "Administracao");
+  }, [profile]);
+
+  useEffect(() => {
+    void loadSession();
+  }, []);
+
+  async function loadSession() {
+    if (!isSupabaseConfigured) {
+      setIsProfileLoading(false);
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const { data } = await supabase.auth.getSession();
+
+    if (!data.session?.user) {
+      setIsSignedIn(false);
+      setProfile(null);
+      setIsProfileLoading(false);
+      return;
+    }
+
+    await loadProfile(data.session.user.id);
+  }
+
+  async function loadProfile(userId: string) {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, avatar_url, role, is_active, last_seen_at")
+      .eq("id", userId)
+      .single<Profile>();
+
+    if (error) {
+      setAuthMessage(error.message);
+      setIsSignedIn(false);
+      setProfile(null);
+      setIsProfileLoading(false);
+      return;
+    }
+
+    setProfile(data);
+    setEmail(data.email);
+    setIsSignedIn(true);
+    setIsProfileLoading(false);
+  }
 
   async function signInWithOAuth(provider: "azure" | "google") {
     setAuthMessage("");
@@ -164,7 +243,12 @@ export default function Home() {
       return;
     }
 
-    setIsSignedIn(true);
+    const { data } = await supabase.auth.getUser();
+    if (data.user) {
+      await loadProfile(data.user.id);
+    } else {
+      setIsSignedIn(true);
+    }
     setIsLoading(false);
   }
 
@@ -189,9 +273,35 @@ export default function Home() {
     setAuthMessage(error ? error.message : "Enviamos o link de reset para o e-mail informado.");
   }
 
+  async function signOut() {
+    if (isSupabaseConfigured) {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.auth.signOut();
+    }
+
+    setIsSignedIn(false);
+    setProfile(null);
+    setPassword("");
+  }
+
+  const displayName = profile?.full_name || profile?.email || "Usuario";
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <main className={isSignedIn ? "page authenticated" : "page login-only"}>
-      {!isSignedIn ? (
+      {isProfileLoading ? (
+        <section className="login-preview">
+          <div className="login-panel loading-panel">
+            <div className="loading-mark">K</div>
+            <strong>Carregando seu workspace...</strong>
+          </div>
+        </section>
+      ) : !isSignedIn ? (
       <section className="login-preview">
         <div className="login-panel">
           <div>
@@ -258,7 +368,7 @@ export default function Home() {
           </div>
 
           <nav className="nav">
-            {nav.map((item) => (
+            {visibleNav.map((item) => (
               <a className={item.active ? "nav-item active" : "nav-item"} href="#" key={item.label}>
                 <item.icon size={18} />
                 {item.label}
@@ -279,7 +389,8 @@ export default function Home() {
                 <Search size={16} />
                 <input placeholder="Buscar clientes, projetos ou riscos" />
               </div>
-              <button className="icon-user">
+              <button className="ghost-button" onClick={signOut}>Sair</button>
+              <button className="icon-user" title={profile?.email}>
                 <CircleUserRound size={20} />
               </button>
             </div>
@@ -288,13 +399,83 @@ export default function Home() {
           <section className="content">
             <div className="section-header">
               <div>
-                <p className="eyebrow">Perfil executivo</p>
-                <h2>Dashboard do portfolio</h2>
+                <p className="eyebrow">Entrada contextual</p>
+                <h2>Meu perfil</h2>
               </div>
               <button className="button">
                 <Plus size={16} />
-                Novo projeto
+                Solicitar vinculo
               </button>
+            </div>
+
+            <div className="profile-hero">
+              <article className="surface profile-summary">
+                <div className="profile-card large">
+                  <div className="avatar large-avatar">{initials || "U"}</div>
+                  <div>
+                    <p className="eyebrow">Conta ativa</p>
+                    <h3>{displayName}</h3>
+                    <span>{profile?.email}</span>
+                  </div>
+                </div>
+                <div className="profile-detail-grid">
+                  <div>
+                    <span>Perfil</span>
+                    <strong>{profile ? roleLabels[profile.role] : "Nao definido"}</strong>
+                  </div>
+                  <div>
+                    <span>Status</span>
+                    <strong>{profile?.is_active ? "Ativo" : "Inativo"}</strong>
+                  </div>
+                  <div>
+                    <span>Ultimo acesso</span>
+                    <strong>{profile?.last_seen_at ? new Date(profile.last_seen_at).toLocaleDateString("pt-BR") : "Primeiro acesso"}</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article className="surface approval-note">
+                <Sparkles size={18} />
+                <div>
+                  <h3>Proposta de UX para aprovacao</h3>
+                  <p>
+                    Esta sera a primeira tela apos o login. Ela mostra identidade, papel, permissoes e vinculos antes de levar o usuario aos modulos.
+                  </p>
+                </div>
+              </article>
+            </div>
+
+            <div className="main-grid">
+              <article className="surface">
+                <div className="surface-header">
+                  <div>
+                    <h3>Permissoes do perfil</h3>
+                    <p>{profile ? roleDescriptions[profile.role] : "Perfil ainda nao carregado."}</p>
+                  </div>
+                </div>
+                <div className="permission-list">
+                  {visibleNav.map((item) => (
+                    <span key={item.label}>
+                      <item.icon size={15} />
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+              </article>
+
+              <aside className="surface compact">
+                <div className="surface-header">
+                  <div>
+                    <h3>Vinculos</h3>
+                    <p>Clientes e projetos serao exibidos aqui.</p>
+                  </div>
+                </div>
+                <div className="empty-state">
+                  <Building2 size={20} />
+                  <strong>Nenhum vinculo cadastrado</strong>
+                  <span>Depois do CRUD administrativo, esta area mostrara os clientes e projetos liberados para o usuario.</span>
+                </div>
+              </aside>
             </div>
 
             <div className="metric-grid">
@@ -361,15 +542,15 @@ export default function Home() {
               <aside className="surface compact">
                 <div className="surface-header">
                   <div>
-                    <h3>Meu perfil</h3>
-                    <p>Entrada contextual apos login.</p>
+                    <h3>Resumo da conta</h3>
+                    <p>Dados reais do Supabase.</p>
                   </div>
                 </div>
                 <div className="profile-card">
-                  <div className="avatar">AD</div>
+                  <div className="avatar">{initials || "U"}</div>
                   <div>
-                    <strong>Admin Demo</strong>
-                    <span>Admin</span>
+                    <strong>{displayName}</strong>
+                    <span>{profile ? roleLabels[profile.role] : "Perfil"}</span>
                   </div>
                 </div>
                 <div className="profile-list">
