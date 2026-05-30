@@ -55,6 +55,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -242,7 +243,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select {
   width: 100%;
   height: 40px;
   padding: 0 12px;
@@ -264,6 +266,7 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   outline: 2px solid rgba(15, 108, 129, 0.14);
   border-color: var(--primary-2);
@@ -555,6 +558,7 @@ small {
 .theme-dark .icon-user,
 .theme-dark .icon-button,
 .theme-dark input,
+.theme-dark select,
 .theme-dark textarea {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
@@ -571,7 +575,8 @@ small {
 .theme-dark .theme-toggle,
 .theme-dark .icon-user,
 .theme-dark .icon-button,
-.theme-dark input {
+.theme-dark input,
+.theme-dark select {
   border-radius: var(--kyn-radius-btn);
 }
 
@@ -663,7 +668,19 @@ small {
   grid-template-columns: minmax(160px, 1.1fr) minmax(140px, 1fr) 120px minmax(180px, 1fr) 86px 130px 150px;
 }
 
-.clients-table {
+.projects-row {
+  min-width: 1180px;
+  grid-template-columns: 120px minmax(190px, 1.2fr) minmax(150px, 1fr) minmax(140px, 1fr) 120px 110px 110px 150px;
+}
+
+.professionals-row {
+  min-width: 980px;
+  grid-template-columns: minmax(180px, 1.2fr) 170px minmax(190px, 1fr) 150px 90px 150px;
+}
+
+.clients-table,
+.projects-table,
+.professionals-table {
   scrollbar-width: thin;
 }
 
@@ -812,6 +829,13 @@ small {
 
 .client-details-modal {
   width: min(680px, 100%);
+}
+
+.project-details-modal,
+.project-form-modal,
+.professional-details-modal,
+.professional-form-modal {
+  width: min(760px, 100%);
 }
 
 .delete-confirmation-modal {

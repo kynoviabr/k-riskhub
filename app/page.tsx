@@ -70,11 +70,74 @@ type ClientContactForm = {
   email: string;
 };
 
+type ProfessionalFunction =
+  | "project_manager"
+  | "portfolio_manager"
+  | "project_coordinator"
+  | "project_lead"
+  | "project_director";
+
+type Professional = {
+  id: string;
+  full_name: string;
+  email: string;
+  whatsapp: string | null;
+  function: ProfessionalFunction;
+  is_active: boolean;
+  created_at: string | null;
+};
+
+type ProfessionalForm = {
+  full_name: string;
+  email: string;
+  whatsapp: string;
+  function: ProfessionalFunction;
+};
+
+type ProjectStatus = "planned" | "active" | "paused" | "completed" | "cancelled";
+
+type Project = {
+  id: string;
+  client_id: string;
+  project_number: string;
+  name: string;
+  description: string | null;
+  gp_id: string | null;
+  portfolio_manager_id: string | null;
+  professional_gp_id: string | null;
+  professional_portfolio_manager_id: string | null;
+  phase: string | null;
+  status: ProjectStatus;
+  starts_on: string | null;
+  target_ends_on: string | null;
+  created_at: string | null;
+  clients?: Pick<Client, "id" | "name"> | null;
+  professional_gp?: Pick<Professional, "id" | "full_name" | "email" | "whatsapp" | "function"> | null;
+  professional_portfolio_manager?: Pick<Professional, "id" | "full_name" | "email" | "whatsapp" | "function"> | null;
+  gp?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
+  portfolio_manager?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
+};
+
+type ProjectForm = {
+  client_id: string;
+  project_number: string;
+  name: string;
+  description: string;
+  professional_gp_id: string;
+  professional_portfolio_manager_id: string;
+  phase: string;
+  status: ProjectStatus;
+  starts_on: string;
+  target_ends_on: string;
+};
+
 type PendingDelete =
   | { type: "client"; client: Client }
-  | { type: "contact"; index: number; contactName: string };
+  | { type: "contact"; index: number; contactName: string }
+  | { type: "project"; project: Project }
+  | { type: "professional"; professional: Professional };
 
-const projects = [
+const sampleProjects = [
   {
     number: "PRJ-2026-014",
     name: "SAP S/4HANA Upgrade",
@@ -144,6 +207,7 @@ const nav = [
   { label: "Dashboard", icon: LayoutDashboard, active: true },
   { label: "Clientes", icon: Building2 },
   { label: "Projetos", icon: BriefcaseBusiness },
+  { label: "Profissionais", icon: CircleUserRound },
   { label: "Riscos", icon: TriangleAlert },
   { label: "Portfólio", icon: BarChart3 },
   { label: "Relatórios", icon: FileText },
@@ -174,6 +238,54 @@ const emptyClientContact: ClientContactForm = {
   email: ""
 };
 
+const emptyProfessionalForm: ProfessionalForm = {
+  full_name: "",
+  email: "",
+  whatsapp: "",
+  function: "project_manager"
+};
+
+const emptyProjectForm: ProjectForm = {
+  client_id: "",
+  project_number: "",
+  name: "",
+  description: "",
+  professional_gp_id: "",
+  professional_portfolio_manager_id: "",
+  phase: "",
+  status: "planned",
+  starts_on: "",
+  target_ends_on: ""
+};
+
+const projectPhaseOptions = [
+  "Preparação",
+  "Descoberta",
+  "Planejamento",
+  "Explore",
+  "Realize",
+  "Deploy",
+  "Go-live",
+  "Suporte",
+  "Encerramento"
+];
+
+const professionalFunctionLabels: Record<ProfessionalFunction, string> = {
+  project_manager: "Gerente de Projetos",
+  portfolio_manager: "Gerente de Portfólio",
+  project_coordinator: "Coordenador de Projetos",
+  project_lead: "Líder de Projetos",
+  project_director: "Diretor de Projetos"
+};
+
+const projectStatusLabels: Record<ProjectStatus, string> = {
+  planned: "Planejado",
+  active: "Ativo",
+  paused: "Pausado",
+  completed: "Concluído",
+  cancelled: "Cancelado"
+};
+
 function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 13);
   const hasCountryCode = digits.startsWith("55") && digits.length > 11;
@@ -196,6 +308,10 @@ function isValidPhone(value: string) {
   const digits = value.replace(/\D/g, "");
   const nationalDigits = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
   return nationalDigits.length === 10 || nationalDigits.length === 11;
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLocaleLowerCase("pt-BR");
 }
 
 function hasContactData(contact: ClientContactForm) {
@@ -238,6 +354,20 @@ export default function Home() {
     notes: "",
     contacts: [{ ...emptyClientContact }]
   });
+  const [projectsData, setProjectsData] = useState<Project[]>([]);
+  const [projectsError, setProjectsError] = useState("");
+  const [isProjectsLoading, setIsProjectsLoading] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [projectForm, setProjectForm] = useState<ProjectForm>({ ...emptyProjectForm });
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [professionalsError, setProfessionalsError] = useState("");
+  const [isProfessionalsLoading, setIsProfessionalsLoading] = useState(false);
+  const [isProfessionalModalOpen, setIsProfessionalModalOpen] = useState(false);
+  const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null);
+  const [editingProfessionalId, setEditingProfessionalId] = useState<string | null>(null);
+  const [professionalForm, setProfessionalForm] = useState<ProfessionalForm>({ ...emptyProfessionalForm });
 
   const visibleNav = useMemo(() => {
     if (!profile || profile.role === "admin") return nav;
@@ -297,6 +427,54 @@ export default function Home() {
     setIsClientsLoading(false);
   }, []);
 
+  const loadProjects = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+
+    setIsProjectsLoading(true);
+    setProjectsError("");
+
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("projects")
+      .select("id, client_id, project_number, name, description, gp_id, portfolio_manager_id, professional_gp_id, professional_portfolio_manager_id, phase, status, starts_on, target_ends_on, created_at, clients(id, name), professional_gp:professionals!projects_professional_gp_id_fkey(id, full_name, email, whatsapp, function), professional_portfolio_manager:professionals!projects_professional_portfolio_manager_id_fkey(id, full_name, email, whatsapp, function), gp:profiles!projects_gp_id_fkey(id, full_name, email, role), portfolio_manager:profiles!projects_portfolio_manager_id_fkey(id, full_name, email, role)")
+      .order("project_number", { ascending: true })
+      .returns<Project[]>();
+
+    if (error) {
+      setProjectsError(error.message);
+      setProjectsData([]);
+      setIsProjectsLoading(false);
+      return;
+    }
+
+    setProjectsData(data ?? []);
+    setIsProjectsLoading(false);
+  }, []);
+
+  const loadProfessionals = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+
+    setIsProfessionalsLoading(true);
+    setProfessionalsError("");
+
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("professionals")
+      .select("id, full_name, email, whatsapp, function, is_active, created_at")
+      .order("full_name", { ascending: true })
+      .returns<Professional[]>();
+
+    if (error) {
+      setProfessionalsError(error.message);
+      setProfessionals([]);
+      setIsProfessionalsLoading(false);
+      return;
+    }
+
+    setProfessionals(data ?? []);
+    setIsProfessionalsLoading(false);
+  }, []);
+
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("k-riskhub-theme");
     if (storedTheme === "dark") {
@@ -317,7 +495,15 @@ export default function Home() {
     if (activeModule === "Clientes") {
       void loadClients();
     }
-  }, [activeModule, loadAdminUsers, loadClients]);
+    if (activeModule === "Projetos") {
+      void loadProjects();
+      void loadClients();
+      void loadProfessionals();
+    }
+    if (activeModule === "Profissionais") {
+      void loadProfessionals();
+    }
+  }, [activeModule, loadAdminUsers, loadClients, loadProfessionals, loadProjects]);
 
   function toggleTheme() {
     setTheme((currentTheme) => {
@@ -734,6 +920,22 @@ export default function Home() {
       return;
     }
 
+    if (pendingDelete.type === "project") {
+      const projectToDelete = pendingDelete.project;
+      setPendingDelete(null);
+      setDeleteConfirmationText("");
+      await deleteProject(projectToDelete);
+      return;
+    }
+
+    if (pendingDelete.type === "professional") {
+      const professionalToDelete = pendingDelete.professional;
+      setPendingDelete(null);
+      setDeleteConfirmationText("");
+      await deleteProfessional(professionalToDelete);
+      return;
+    }
+
     removeClientContactImmediately(pendingDelete.index);
     setPendingDelete(null);
     setDeleteConfirmationText("");
@@ -787,13 +989,274 @@ export default function Home() {
     }
   }
 
+  function resetProfessionalForm() {
+    setProfessionalForm({ ...emptyProfessionalForm });
+    setEditingProfessionalId(null);
+    setProfessionalsError("");
+  }
+
+  function openNewProfessionalModal() {
+    resetProfessionalForm();
+    setIsProfessionalModalOpen(true);
+  }
+
+  function openProfessionalDetails(professional: Professional) {
+    setSelectedProfessional(professional);
+  }
+
+  function openEditProfessionalModal(professional: Professional) {
+    setProfessionalForm({
+      full_name: professional.full_name,
+      email: professional.email,
+      whatsapp: professional.whatsapp || "",
+      function: professional.function
+    });
+    setEditingProfessionalId(professional.id);
+    setProfessionalsError("");
+    setIsProfessionalModalOpen(true);
+  }
+
+  async function saveProfessional() {
+    setProfessionalsError("");
+
+    if (!professionalForm.full_name.trim()) {
+      setProfessionalsError("Informe o nome completo do profissional.");
+      return;
+    }
+
+    if (!professionalForm.email.trim() || !isValidEmail(professionalForm.email.trim())) {
+      setProfessionalsError("Informe um e-mail válido.");
+      return;
+    }
+
+    if (professionalForm.whatsapp.trim() && !isValidPhone(professionalForm.whatsapp)) {
+      setProfessionalsError("Informe um WhatsApp válido.");
+      return;
+    }
+
+    const duplicatedProfessional = professionals.find((professional) =>
+      professional.id !== editingProfessionalId
+      && normalizeEmail(professional.email) === normalizeEmail(professionalForm.email)
+      && professional.function === professionalForm.function
+    );
+
+    if (duplicatedProfessional) {
+      setProfessionalsError("Já existe um profissional com este e-mail e função.");
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setProfessionalsError("Supabase não configurado para salvar profissionais.");
+      return;
+    }
+
+    setIsProfessionalsLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const payload = {
+      full_name: professionalForm.full_name.trim(),
+      email: normalizeEmail(professionalForm.email),
+      whatsapp: professionalForm.whatsapp.trim() || null,
+      function: professionalForm.function,
+      is_active: true
+    };
+
+    const { error } = editingProfessionalId
+      ? await supabase.from("professionals").update(payload).eq("id", editingProfessionalId)
+      : await supabase.from("professionals").insert(payload);
+
+    if (error) {
+      setProfessionalsError(error.message);
+      setIsProfessionalsLoading(false);
+      return;
+    }
+
+    resetProfessionalForm();
+    setIsProfessionalModalOpen(false);
+    await loadProfessionals();
+  }
+
+  function requestDeleteProfessional(professional: Professional) {
+    setProfessionalsError("");
+    setDeleteConfirmationText("");
+    setPendingDelete({ type: "professional", professional });
+  }
+
+  async function deleteProfessional(professional: Professional) {
+    setProfessionalsError("");
+
+    if (!isSupabaseConfigured) {
+      setProfessionalsError("Supabase não configurado para remover profissionais.");
+      return;
+    }
+
+    setIsProfessionalsLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.from("professionals").delete().eq("id", professional.id);
+
+    if (error) {
+      setProfessionalsError(error.message);
+      setIsProfessionalsLoading(false);
+      return;
+    }
+
+    if (selectedProfessional?.id === professional.id) {
+      setSelectedProfessional(null);
+    }
+
+    await loadProfessionals();
+  }
+
+  function resetProjectForm() {
+    setProjectForm({ ...emptyProjectForm });
+    setEditingProjectId(null);
+    setProjectsError("");
+  }
+
+  function openNewProjectModal() {
+    resetProjectForm();
+    setProjectForm((current) => ({
+      ...current,
+      client_id: clients[0]?.id || ""
+    }));
+    setIsProjectModalOpen(true);
+  }
+
+  function openProjectDetails(project: Project) {
+    setSelectedProject(project);
+  }
+
+  function openEditProjectModal(project: Project) {
+    setProjectForm({
+      client_id: project.client_id,
+      project_number: project.project_number,
+      name: project.name,
+      description: project.description || "",
+      professional_gp_id: project.professional_gp_id || "",
+      professional_portfolio_manager_id: project.professional_portfolio_manager_id || "",
+      phase: project.phase || "",
+      status: project.status,
+      starts_on: project.starts_on || "",
+      target_ends_on: project.target_ends_on || ""
+    });
+    setEditingProjectId(project.id);
+    setProjectsError("");
+    setIsProjectModalOpen(true);
+  }
+
+  async function saveProject() {
+    setProjectsError("");
+
+    if (!projectForm.client_id) {
+      setProjectsError("Selecione o cliente do projeto.");
+      return;
+    }
+
+    if (!projectForm.project_number.trim()) {
+      setProjectsError("Informe o número do projeto.");
+      return;
+    }
+
+    if (!projectForm.name.trim()) {
+      setProjectsError("Informe o nome do projeto.");
+      return;
+    }
+
+    const duplicatedProject = projectsData.find((project) =>
+      project.id !== editingProjectId
+      && project.client_id === projectForm.client_id
+      && project.project_number.trim().toLocaleLowerCase("pt-BR") === projectForm.project_number.trim().toLocaleLowerCase("pt-BR")
+    );
+
+    if (duplicatedProject) {
+      setProjectsError("Este cliente já possui um projeto com este número.");
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setProjectsError("Supabase não configurado para salvar projetos.");
+      return;
+    }
+
+    setIsProjectsLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const payload = {
+      client_id: projectForm.client_id,
+      project_number: projectForm.project_number.trim(),
+      name: projectForm.name.trim(),
+      description: projectForm.description.trim() || null,
+      professional_gp_id: projectForm.professional_gp_id || null,
+      professional_portfolio_manager_id: projectForm.professional_portfolio_manager_id || null,
+      gp_id: null,
+      portfolio_manager_id: null,
+      phase: projectForm.phase.trim() || null,
+      status: projectForm.status,
+      starts_on: projectForm.starts_on || null,
+      target_ends_on: projectForm.target_ends_on || null
+    };
+
+    const { error } = editingProjectId
+      ? await supabase.from("projects").update(payload).eq("id", editingProjectId)
+      : await supabase.from("projects").insert(payload);
+
+    if (error) {
+      setProjectsError(error.message);
+      setIsProjectsLoading(false);
+      return;
+    }
+
+    resetProjectForm();
+    setIsProjectModalOpen(false);
+    await loadProjects();
+  }
+
+  function requestDeleteProject(project: Project) {
+    setProjectsError("");
+    setDeleteConfirmationText("");
+    setPendingDelete({ type: "project", project });
+  }
+
+  async function deleteProject(project: Project) {
+    setProjectsError("");
+
+    if (!isSupabaseConfigured) {
+      setProjectsError("Supabase não configurado para remover projetos.");
+      return;
+    }
+
+    setIsProjectsLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.from("projects").delete().eq("id", project.id);
+
+    if (error) {
+      setProjectsError(error.message);
+      setIsProjectsLoading(false);
+      return;
+    }
+
+    if (selectedProject?.id === project.id) {
+      setSelectedProject(null);
+    }
+
+    await loadProjects();
+  }
+
   const displayName = profile?.full_name || profile?.email || "Usuário";
   const isClientProfile = profile?.role === "client";
   const isAdminUsersView = isAdminProfile && activeModule === "Administração";
   const isClientsView = activeModule === "Clientes";
+  const isProjectsView = activeModule === "Projetos";
+  const isProfessionalsView = activeModule === "Profissionais";
+  const projectManagers = professionals.filter((professional) =>
+    ["project_manager", "project_coordinator", "project_lead"].includes(professional.function)
+    && professional.is_active
+  );
+  const portfolioManagers = professionals.filter((professional) =>
+    ["portfolio_manager", "project_director"].includes(professional.function)
+    && professional.is_active
+  );
   const visibleProjects = isClientProfile
-    ? projects.map((project) => ({ ...project, client: displayName }))
-    : projects;
+    ? sampleProjects.map((project) => ({ ...project, client: displayName }))
+    : sampleProjects;
   const initials = displayName
     .split(" ")
     .map((part) => part[0])
@@ -941,7 +1404,7 @@ export default function Home() {
             <div className="section-header">
               <div>
                 <p className="eyebrow">Visão geral</p>
-                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : "Dashboard"}</h2>
+                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : isProjectsView ? "Projetos" : isProfessionalsView ? "Profissionais" : "Dashboard"}</h2>
               </div>
               {isAdminUsersView ? (
                 <button className="ghost-button" onClick={loadAdminUsers}>
@@ -954,6 +1417,22 @@ export default function Home() {
                 >
                   <Plus size={16} />
                   Novo cliente
+                </button>
+              ) : isProjectsView && isAdminProfile ? (
+                <button
+                  className="button"
+                  onClick={openNewProjectModal}
+                >
+                  <Plus size={16} />
+                  Novo projeto
+                </button>
+              ) : isProfessionalsView && isAdminProfile ? (
+                <button
+                  className="button"
+                  onClick={openNewProfessionalModal}
+                >
+                  <Plus size={16} />
+                  Novo profissional
                 </button>
               ) : !isClientProfile ? (
                 <button className="button">
@@ -1137,6 +1616,224 @@ export default function Home() {
                             </div>
                           );
                         })()
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </>
+            ) : isProfessionalsView ? (
+              <>
+                <div className="metric-grid compact-metrics">
+                  <article className="metric">
+                    <CircleUserRound size={15} />
+                    <span>Profissionais</span>
+                    <strong>{professionals.length}</strong>
+                  </article>
+                  <article className="metric">
+                    <BriefcaseBusiness size={15} />
+                    <span>Projetos</span>
+                    <strong>{professionals.filter((professional) =>
+                      ["project_manager", "project_coordinator", "project_lead"].includes(professional.function)
+                    ).length}</strong>
+                  </article>
+                  <article className="metric">
+                    <BarChart3 size={15} />
+                    <span>Portfólio e direção</span>
+                    <strong>{professionals.filter((professional) =>
+                      ["portfolio_manager", "project_director"].includes(professional.function)
+                    ).length}</strong>
+                  </article>
+                  <article className="metric">
+                    <ListChecks size={15} />
+                    <span>Ativos</span>
+                    <strong>{professionals.filter((professional) => professional.is_active).length}</strong>
+                  </article>
+                </div>
+
+                <article className="surface">
+                  <div className="surface-header">
+                    <div>
+                      <h3>Profissionais</h3>
+                      <p>Cadastro de GPs e gerentes de portfólio usados nos projetos.</p>
+                    </div>
+                    <button className="ghost-button" onClick={loadProfessionals}>
+                      Atualizar
+                    </button>
+                  </div>
+
+                  {professionalsError && !isProfessionalModalOpen ? <p className="auth-message">{professionalsError}</p> : null}
+                  {isProfessionalsLoading ? (
+                    <div className="empty-state">
+                      <CircleUserRound size={20} />
+                      <strong>Carregando profissionais</strong>
+                      <span>Consultando profissionais cadastrados.</span>
+                    </div>
+                  ) : professionals.length === 0 ? (
+                    <div className="empty-state">
+                      <CircleUserRound size={20} />
+                      <strong>Nenhum profissional cadastrado</strong>
+                      <span>Cadastre GPs e gerentes de portfólio antes de criar projetos.</span>
+                    </div>
+                  ) : (
+                    <div className="table professionals-table">
+                      <div className="table-row table-head professionals-row">
+                        <span>Nome</span>
+                        <span>Função</span>
+                        <span>E-mail</span>
+                        <span>WhatsApp</span>
+                        <span>Status</span>
+                        <span>Ações</span>
+                      </div>
+                      {professionals.map((professional) => (
+                        <div className="table-row professionals-row" key={professional.id}>
+                          <span>
+                            <button className="link-button" onClick={() => openProfessionalDetails(professional)} type="button">
+                              {professional.full_name}
+                            </button>
+                            <small>{professional.created_at ? new Date(professional.created_at).toLocaleDateString("pt-BR") : "Sem data"}</small>
+                          </span>
+                          <span>{professionalFunctionLabels[professional.function]}</span>
+                          <span>{professional.email}</span>
+                          <span>{professional.whatsapp || "Não informado"}</span>
+                          <span>
+                            <StatusPill status={professional.is_active ? "Ativo" : "Inativo"} />
+                          </span>
+                          <span className="table-actions">
+                            <button
+                              aria-label={`Ver detalhes de ${professional.full_name}`}
+                              className="icon-button small-icon-button"
+                              onClick={() => openProfessionalDetails(professional)}
+                              title="Ver detalhes"
+                              type="button"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button className="ghost-button compact-button" onClick={() => openEditProfessionalModal(professional)} type="button">
+                              <Pencil size={14} />
+                              Editar
+                            </button>
+                            <button
+                              aria-label={`Remover ${professional.full_name}`}
+                              className="icon-button small-icon-button danger-icon-button"
+                              onClick={() => requestDeleteProfessional(professional)}
+                              title="Remover profissional"
+                              type="button"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </>
+            ) : isProjectsView ? (
+              <>
+                <div className="metric-grid compact-metrics">
+                  <article className="metric">
+                    <BriefcaseBusiness size={15} />
+                    <span>Projetos</span>
+                    <strong>{projectsData.length}</strong>
+                  </article>
+                  <article className="metric">
+                    <ListChecks size={15} />
+                    <span>Ativos</span>
+                    <strong>{projectsData.filter((project) => project.status === "active").length}</strong>
+                  </article>
+                  <article className="metric">
+                    <Building2 size={15} />
+                    <span>Clientes vinculados</span>
+                    <strong>{new Set(projectsData.map((project) => project.client_id)).size}</strong>
+                  </article>
+                  <article className="metric">
+                    <TriangleAlert size={15} />
+                    <span>Sem GP</span>
+                    <strong>{projectsData.filter((project) => !project.professional_gp_id).length}</strong>
+                  </article>
+                </div>
+
+                <article className="surface">
+                  <div className="surface-header">
+                    <div>
+                      <h3>Projetos</h3>
+                      <p>Cadastro operacional por cliente, número, GP, fase e status.</p>
+                    </div>
+                    <button className="ghost-button" onClick={loadProjects}>
+                      Atualizar
+                    </button>
+                  </div>
+
+                  {projectsError && !isProjectModalOpen ? <p className="auth-message">{projectsError}</p> : null}
+                  {isProjectsLoading ? (
+                    <div className="empty-state">
+                      <BriefcaseBusiness size={20} />
+                      <strong>Carregando projetos</strong>
+                      <span>Consultando projetos liberados para o seu perfil.</span>
+                    </div>
+                  ) : projectsData.length === 0 ? (
+                    <div className="empty-state">
+                      <BriefcaseBusiness size={20} />
+                      <strong>Nenhum projeto cadastrado</strong>
+                      <span>Crie o primeiro projeto vinculando um cliente e um número de projeto.</span>
+                    </div>
+                  ) : (
+                    <div className="table projects-table">
+                      <div className="table-row table-head projects-row">
+                        <span>Número</span>
+                        <span>Projeto</span>
+                        <span>Cliente</span>
+                        <span>GP</span>
+                        <span>Fase</span>
+                        <span>Status</span>
+                        <span>Prazo</span>
+                        <span>Ações</span>
+                      </div>
+                      {projectsData.map((project) => (
+                        <div className="table-row projects-row" key={project.id}>
+                          <span className="mono">{project.project_number}</span>
+                          <span>
+                            <button className="link-button" onClick={() => openProjectDetails(project)} type="button">
+                              {project.name}
+                            </button>
+                            <small>{project.description || "Sem descrição"}</small>
+                          </span>
+                          <span>{project.clients?.name || "Cliente não informado"}</span>
+                          <span>{project.professional_gp?.full_name || "Não definido"}</span>
+                          <span>{project.phase || "Não informada"}</span>
+                          <span>
+                            <StatusPill status={projectStatusLabels[project.status]} />
+                          </span>
+                          <span>{project.target_ends_on ? new Date(project.target_ends_on).toLocaleDateString("pt-BR") : "Sem prazo"}</span>
+                          <span className="table-actions">
+                            <button
+                              aria-label={`Ver detalhes de ${project.name}`}
+                              className="icon-button small-icon-button"
+                              onClick={() => openProjectDetails(project)}
+                              title="Ver detalhes"
+                              type="button"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            {isAdminProfile ? (
+                              <>
+                                <button className="ghost-button compact-button" onClick={() => openEditProjectModal(project)} type="button">
+                                  <Pencil size={14} />
+                                  Editar
+                                </button>
+                                <button
+                                  aria-label={`Remover ${project.name}`}
+                                  className="icon-button small-icon-button danger-icon-button"
+                                  onClick={() => requestDeleteProject(project)}
+                                  title="Remover projeto"
+                                  type="button"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            ) : null}
+                          </span>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1397,6 +2094,151 @@ export default function Home() {
           </section>
         </div>
       ) : null}
+      {selectedProject ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setSelectedProject(null)}>
+          <section
+            aria-labelledby="project-details-title"
+            className="modal project-details-modal"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Projeto</p>
+                <h3 id="project-details-title">{selectedProject.name}</h3>
+              </div>
+              <button className="icon-button" aria-label="Fechar" onClick={() => setSelectedProject(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="detail-summary">
+              <div>
+                <span>Número</span>
+                <strong>{selectedProject.project_number}</strong>
+              </div>
+              <div>
+                <span>Cliente</span>
+                <strong>{selectedProject.clients?.name || "Não informado"}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{projectStatusLabels[selectedProject.status]}</strong>
+              </div>
+            </div>
+
+            <div className="detail-summary">
+              <div>
+                <span>GP</span>
+                <strong>{selectedProject.professional_gp?.full_name || "Não definido"}</strong>
+              </div>
+              <div>
+                <span>Portfólio</span>
+                <strong>{selectedProject.professional_portfolio_manager?.full_name || "Não definido"}</strong>
+              </div>
+              <div>
+                <span>Fase</span>
+                <strong>{selectedProject.phase || "Não informada"}</strong>
+              </div>
+            </div>
+
+            <div className="detail-summary">
+              <div>
+                <span>Início</span>
+                <strong>{selectedProject.starts_on ? new Date(selectedProject.starts_on).toLocaleDateString("pt-BR") : "Sem data"}</strong>
+              </div>
+              <div>
+                <span>Fim previsto</span>
+                <strong>{selectedProject.target_ends_on ? new Date(selectedProject.target_ends_on).toLocaleDateString("pt-BR") : "Sem data"}</strong>
+              </div>
+              <div>
+                <span>Criado em</span>
+                <strong>{selectedProject.created_at ? new Date(selectedProject.created_at).toLocaleDateString("pt-BR") : "Sem data"}</strong>
+              </div>
+            </div>
+
+            <div className="detail-block">
+              <span>Descrição</span>
+              <p>{selectedProject.description || "Sem descrição cadastrada."}</p>
+            </div>
+
+            {isAdminProfile ? (
+              <div className="modal-actions">
+                <button className="ghost-button" onClick={() => {
+                  setSelectedProject(null);
+                  openEditProjectModal(selectedProject);
+                }} type="button">
+                  <Pencil size={14} />
+                  Editar
+                </button>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
+      {selectedProfessional ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setSelectedProfessional(null)}>
+          <section
+            aria-labelledby="professional-details-title"
+            className="modal professional-details-modal"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Profissional</p>
+                <h3 id="professional-details-title">{selectedProfessional.full_name}</h3>
+              </div>
+              <button className="icon-button" aria-label="Fechar" onClick={() => setSelectedProfessional(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="detail-summary">
+              <div>
+                <span>Função</span>
+                <strong>{professionalFunctionLabels[selectedProfessional.function]}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{selectedProfessional.is_active ? "Ativo" : "Inativo"}</strong>
+              </div>
+              <div>
+                <span>Criado em</span>
+                <strong>{selectedProfessional.created_at ? new Date(selectedProfessional.created_at).toLocaleDateString("pt-BR") : "Sem data"}</strong>
+              </div>
+            </div>
+            <div className="detail-summary">
+              <div>
+                <span>E-mail</span>
+                <strong>{selectedProfessional.email}</strong>
+              </div>
+              <div>
+                <span>WhatsApp</span>
+                <strong>{selectedProfessional.whatsapp || "Não informado"}</strong>
+              </div>
+              <div>
+                <span>Projetos</span>
+                <strong>
+                  {projectsData.filter((project) =>
+                    project.professional_gp_id === selectedProfessional.id
+                    || project.professional_portfolio_manager_id === selectedProfessional.id
+                  ).length}
+                </strong>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="ghost-button" onClick={() => {
+                setSelectedProfessional(null);
+                openEditProfessionalModal(selectedProfessional);
+              }} type="button">
+                <Pencil size={14} />
+                Editar
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {pendingDelete ? (
         <div
           className="modal-backdrop"
@@ -1415,7 +2257,9 @@ export default function Home() {
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Confirmação</p>
-                <h3 id="delete-confirmation-title">Remover {pendingDelete.type === "client" ? "cliente" : "contato"}</h3>
+                <h3 id="delete-confirmation-title">
+                  Remover {pendingDelete.type === "client" ? "cliente" : pendingDelete.type === "project" ? "projeto" : pendingDelete.type === "professional" ? "profissional" : "contato"}
+                </h3>
               </div>
               <button
                 className="icon-button"
@@ -1432,7 +2276,11 @@ export default function Home() {
             <p className="muted">
               {pendingDelete.type === "client"
                 ? `Esta ação removerá o cliente "${pendingDelete.client.name}" e seus contatos vinculados.`
-                : `Esta ação removerá o contato "${pendingDelete.contactName}" deste cliente.`}
+                : pendingDelete.type === "project"
+                  ? `Esta ação removerá o projeto "${pendingDelete.project.name}" e seus vínculos dependentes.`
+                  : pendingDelete.type === "professional"
+                    ? `Esta ação removerá o profissional "${pendingDelete.professional.full_name}".`
+                    : `Esta ação removerá o contato "${pendingDelete.contactName}" deste cliente.`}
             </p>
             <label className="confirm-delete-field">
               Digite remover para confirmar
@@ -1456,12 +2304,12 @@ export default function Home() {
               </button>
               <button
                 className="button danger-button"
-                disabled={deleteConfirmationText.trim().toLocaleLowerCase("pt-BR") !== "remover" || isClientsLoading}
+                disabled={deleteConfirmationText.trim().toLocaleLowerCase("pt-BR") !== "remover" || isClientsLoading || isProjectsLoading || isProfessionalsLoading}
                 onClick={confirmPendingDelete}
                 type="button"
               >
                 <Trash2 size={16} />
-                {isClientsLoading ? "Removendo..." : "Remover"}
+                {isClientsLoading || isProjectsLoading || isProfessionalsLoading ? "Removendo..." : "Remover"}
               </button>
             </div>
           </section>
@@ -1582,6 +2430,237 @@ export default function Home() {
               <button className="button full" disabled={isClientsLoading} onClick={saveClient} type="button">
                 <Plus size={16} />
                 {isClientsLoading ? "Salvando..." : editingClientId ? "Salvar alterações" : "Salvar cliente"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {isProfessionalModalOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            resetProfessionalForm();
+            setIsProfessionalModalOpen(false);
+          }}
+        >
+          <section
+            aria-labelledby="professional-modal-title"
+            className="modal professional-form-modal"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Profissionais</p>
+                <h3 id="professional-modal-title">{editingProfessionalId ? "Editar profissional" : "Novo profissional"}</h3>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Fechar"
+                onClick={() => {
+                  resetProfessionalForm();
+                  setIsProfessionalModalOpen(false);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="field-stack modal-form">
+              <label>
+                Nome completo
+                <input
+                  value={professionalForm.full_name}
+                  onChange={(event) => setProfessionalForm((current) => ({ ...current, full_name: event.target.value }))}
+                  placeholder="Nome do profissional"
+                />
+              </label>
+              <div className="form-grid two-columns">
+                <label>
+                  E-mail
+                  <input
+                    type="email"
+                    value={professionalForm.email}
+                    onChange={(event) => setProfessionalForm((current) => ({ ...current, email: event.target.value }))}
+                    placeholder="profissional@empresa.com"
+                  />
+                </label>
+                <label>
+                  WhatsApp
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    value={professionalForm.whatsapp}
+                    onChange={(event) => setProfessionalForm((current) => ({ ...current, whatsapp: formatPhone(event.target.value) }))}
+                    placeholder="+55 11 99999-9999"
+                  />
+                </label>
+              </div>
+              <label>
+                Função
+                <select
+                  value={professionalForm.function}
+                  onChange={(event) => setProfessionalForm((current) => ({ ...current, function: event.target.value as ProfessionalFunction }))}
+                >
+                  {Object.entries(professionalFunctionLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              {professionalsError ? <p className="auth-message modal-message">{professionalsError}</p> : null}
+              <button className="button full" disabled={isProfessionalsLoading} onClick={saveProfessional} type="button">
+                <Plus size={16} />
+                {isProfessionalsLoading ? "Salvando..." : editingProfessionalId ? "Salvar alterações" : "Salvar profissional"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {isProjectModalOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            resetProjectForm();
+            setIsProjectModalOpen(false);
+          }}
+        >
+          <section
+            aria-labelledby="project-modal-title"
+            className="modal project-form-modal"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Projetos</p>
+                <h3 id="project-modal-title">{editingProjectId ? "Editar projeto" : "Novo projeto"}</h3>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Fechar"
+                onClick={() => {
+                  resetProjectForm();
+                  setIsProjectModalOpen(false);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="field-stack modal-form">
+              <div className="form-grid two-columns">
+                <label>
+                  Cliente
+                  <select
+                    value={projectForm.client_id}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, client_id: event.target.value }))}
+                  >
+                    <option value="">Selecione</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>{client.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Número do projeto
+                  <input
+                    value={projectForm.project_number}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, project_number: event.target.value }))}
+                    placeholder="PRJ-2026-001"
+                  />
+                </label>
+              </div>
+              <label>
+                Nome do projeto
+                <input
+                  value={projectForm.name}
+                  onChange={(event) => setProjectForm((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="Nome do projeto"
+                />
+              </label>
+              <label>
+                Descrição
+                <textarea
+                  value={projectForm.description}
+                  onChange={(event) => setProjectForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Resumo operacional do projeto"
+                />
+              </label>
+              <div className="form-grid two-columns">
+                <label>
+                  GP responsável
+                  <select
+                    value={projectForm.professional_gp_id}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, professional_gp_id: event.target.value }))}
+                  >
+                    <option value="">Não definido</option>
+                    {projectManagers.map((professional) => (
+                      <option key={professional.id} value={professional.id}>{professional.full_name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Gerente de portfólio
+                  <select
+                    value={projectForm.professional_portfolio_manager_id}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, professional_portfolio_manager_id: event.target.value }))}
+                  >
+                    <option value="">Não definido</option>
+                    {portfolioManagers.map((professional) => (
+                      <option key={professional.id} value={professional.id}>{professional.full_name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="form-grid two-columns">
+                <label>
+                  Fase
+                  <select
+                    value={projectForm.phase}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, phase: event.target.value }))}
+                  >
+                    <option value="">Não definida</option>
+                    {projectPhaseOptions.map((phase) => (
+                      <option key={phase} value={phase}>{phase}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select
+                    value={projectForm.status}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, status: event.target.value as ProjectStatus }))}
+                  >
+                    {Object.entries(projectStatusLabels).map(([status, label]) => (
+                      <option key={status} value={status}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="form-grid two-columns">
+                <label>
+                  Início
+                  <input
+                    type="date"
+                    value={projectForm.starts_on}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, starts_on: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Fim previsto
+                  <input
+                    type="date"
+                    value={projectForm.target_ends_on}
+                    onChange={(event) => setProjectForm((current) => ({ ...current, target_ends_on: event.target.value }))}
+                  />
+                </label>
+              </div>
+              {projectsError ? <p className="auth-message modal-message">{projectsError}</p> : null}
+              <button className="button full" disabled={isProjectsLoading} onClick={saveProject} type="button">
+                <Plus size={16} />
+                {isProjectsLoading ? "Salvando..." : editingProjectId ? "Salvar alterações" : "Salvar projeto"}
               </button>
             </div>
           </section>
