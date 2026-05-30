@@ -25,111 +25,30 @@ import {
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type AdminUser,
+  type Client,
+  type ClientContactForm,
+  type Professional,
+  type ProfessionalFunction,
+  type ProfessionalForm,
+  type Profile,
+  type Project,
+  type ProjectForm,
+  type ProjectStatus,
+  emptyClientContact,
+  emptyProfessionalForm,
+  emptyProjectForm,
+  formatPhone,
+  hasContactData,
+  isValidEmail,
+  isValidPhone,
+  normalizeEmail,
+  professionalFunctionLabels,
+  projectPhaseOptions,
+  projectStatusLabels
+} from "@/lib/domain";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
-
-type Profile = {
-  id: string;
-  full_name: string | null;
-  email: string;
-  avatar_url: string | null;
-  role: "admin" | "gp" | "client" | "portfolio_manager" | "director";
-  is_active: boolean;
-  last_seen_at: string | null;
-};
-
-type AdminUser = Profile & {
-  created_at: string | null;
-};
-
-type Client = {
-  id: string;
-  name: string;
-  legal_name: string | null;
-  tax_id: string | null;
-  status: string;
-  notes: string | null;
-  created_at: string | null;
-  client_contacts?: ClientContact[];
-};
-
-type ClientContact = {
-  id?: string;
-  client_id?: string;
-  name: string;
-  role_title: string | null;
-  phone: string | null;
-  email: string | null;
-  is_primary?: boolean;
-};
-
-type ClientContactForm = {
-  id?: string;
-  name: string;
-  role_title: string;
-  phone: string;
-  email: string;
-};
-
-type ProfessionalFunction =
-  | "project_manager"
-  | "portfolio_manager"
-  | "project_coordinator"
-  | "project_lead"
-  | "project_director";
-
-type Professional = {
-  id: string;
-  full_name: string;
-  email: string;
-  whatsapp: string | null;
-  function: ProfessionalFunction;
-  is_active: boolean;
-  created_at: string | null;
-};
-
-type ProfessionalForm = {
-  full_name: string;
-  email: string;
-  whatsapp: string;
-  function: ProfessionalFunction;
-};
-
-type ProjectStatus = "planned" | "active" | "paused" | "completed" | "cancelled";
-
-type Project = {
-  id: string;
-  client_id: string;
-  project_number: string;
-  name: string;
-  description: string | null;
-  gp_id: string | null;
-  portfolio_manager_id: string | null;
-  professional_gp_id: string | null;
-  professional_portfolio_manager_id: string | null;
-  phase: string | null;
-  status: ProjectStatus;
-  starts_on: string | null;
-  target_ends_on: string | null;
-  created_at: string | null;
-  clients?: Pick<Client, "id" | "name"> | null;
-  professional_gp?: Pick<Professional, "id" | "full_name" | "email" | "whatsapp" | "function"> | null;
-  professional_portfolio_manager?: Pick<Professional, "id" | "full_name" | "email" | "whatsapp" | "function"> | null;
-  gp?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
-  portfolio_manager?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
-};
-
-type ProjectForm = {
-  client_id: string;
-  project_number: string;
-  name: string;
-  description: string;
-  professional_gp_id: string;
-  professional_portfolio_manager_id: string;
-  phase: string;
-  status: ProjectStatus;
-  starts_on: string;
-  target_ends_on: string;
-};
 
 type PendingDelete =
   | { type: "client"; client: Client }
@@ -231,93 +150,6 @@ const roleDescriptions: Record<Profile["role"], string> = {
   director: "Visão executiva dos indicadores e riscos do portfólio."
 };
 
-const emptyClientContact: ClientContactForm = {
-  name: "",
-  role_title: "",
-  phone: "",
-  email: ""
-};
-
-const emptyProfessionalForm: ProfessionalForm = {
-  full_name: "",
-  email: "",
-  whatsapp: "",
-  function: "project_manager"
-};
-
-const emptyProjectForm: ProjectForm = {
-  client_id: "",
-  project_number: "",
-  name: "",
-  description: "",
-  professional_gp_id: "",
-  professional_portfolio_manager_id: "",
-  phase: "",
-  status: "planned",
-  starts_on: "",
-  target_ends_on: ""
-};
-
-const projectPhaseOptions = [
-  "Preparação",
-  "Descoberta",
-  "Planejamento",
-  "Explore",
-  "Realize",
-  "Deploy",
-  "Go-live",
-  "Suporte",
-  "Encerramento"
-];
-
-const professionalFunctionLabels: Record<ProfessionalFunction, string> = {
-  project_manager: "Gerente de Projetos",
-  portfolio_manager: "Gerente de Portfólio",
-  project_coordinator: "Coordenador de Projetos",
-  project_lead: "Líder de Projetos",
-  project_director: "Diretor de Projetos"
-};
-
-const projectStatusLabels: Record<ProjectStatus, string> = {
-  planned: "Planejado",
-  active: "Ativo",
-  paused: "Pausado",
-  completed: "Concluído",
-  cancelled: "Cancelado"
-};
-
-function formatPhone(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 13);
-  const hasCountryCode = digits.startsWith("55") && digits.length > 11;
-  const nationalDigits = hasCountryCode ? digits.slice(2) : digits;
-  const countryPrefix = hasCountryCode ? "+55 " : "";
-  const areaCode = nationalDigits.slice(0, 2);
-  const firstPart = nationalDigits.length > 10 ? nationalDigits.slice(2, 7) : nationalDigits.slice(2, 6);
-  const secondPart = nationalDigits.length > 10 ? nationalDigits.slice(7, 11) : nationalDigits.slice(6, 10);
-
-  if (nationalDigits.length <= 2) return `${countryPrefix}${areaCode}`;
-  if (nationalDigits.length <= 6) return `${countryPrefix}(${areaCode}) ${firstPart}`;
-  return `${countryPrefix}(${areaCode}) ${firstPart}-${secondPart}`;
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
-}
-
-function isValidPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  const nationalDigits = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
-  return nationalDigits.length === 10 || nationalDigits.length === 11;
-}
-
-function normalizeEmail(value: string) {
-  return value.trim().toLocaleLowerCase("pt-BR");
-}
-
-function hasContactData(contact: ClientContactForm) {
-  return Boolean(contact.name.trim() || contact.role_title.trim() || contact.phone.trim() || contact.email.trim());
-}
-
 function SeverityBadge({ label }: { label: string }) {
   return <span className={`badge badge-${label.toLowerCase()}`}>{label}</span>;
 }
@@ -412,7 +244,9 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("clients")
-      .select("id, name, legal_name, tax_id, status, notes, created_at, client_contacts(id, name, role_title, phone, email, is_primary)")
+      .select("id, name, legal_name, tax_id, status, notes, created_at, deleted_at, client_contacts(id, name, role_title, phone, email, is_primary, deleted_at)")
+      .is("deleted_at", null)
+      .is("client_contacts.deleted_at", null)
       .order("name", { ascending: true })
       .returns<Client[]>();
 
@@ -423,7 +257,10 @@ export default function Home() {
       return;
     }
 
-    setClients(data ?? []);
+    setClients((data ?? []).map((client) => ({
+      ...client,
+      client_contacts: client.client_contacts?.filter((contact) => !contact.deleted_at)
+    })));
     setIsClientsLoading(false);
   }, []);
 
@@ -436,7 +273,8 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("projects")
-      .select("id, client_id, project_number, name, description, gp_id, portfolio_manager_id, professional_gp_id, professional_portfolio_manager_id, phase, status, starts_on, target_ends_on, created_at, clients(id, name), professional_gp:professionals!projects_professional_gp_id_fkey(id, full_name, email, whatsapp, function), professional_portfolio_manager:professionals!projects_professional_portfolio_manager_id_fkey(id, full_name, email, whatsapp, function), gp:profiles!projects_gp_id_fkey(id, full_name, email, role), portfolio_manager:profiles!projects_portfolio_manager_id_fkey(id, full_name, email, role)")
+      .select("id, client_id, project_number, name, description, gp_id, portfolio_manager_id, professional_gp_id, professional_portfolio_manager_id, phase, status, starts_on, target_ends_on, created_at, deleted_at, clients(id, name), professional_gp:professionals!projects_professional_gp_id_fkey(id, full_name, email, whatsapp, function), professional_portfolio_manager:professionals!projects_professional_portfolio_manager_id_fkey(id, full_name, email, whatsapp, function), gp:profiles!projects_gp_id_fkey(id, full_name, email, role), portfolio_manager:profiles!projects_portfolio_manager_id_fkey(id, full_name, email, role)")
+      .is("deleted_at", null)
       .order("project_number", { ascending: true })
       .returns<Project[]>();
 
@@ -460,7 +298,8 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("professionals")
-      .select("id, full_name, email, whatsapp, function, is_active, created_at")
+      .select("id, full_name, email, whatsapp, function, is_active, created_at, deleted_at")
+      .is("deleted_at", null)
       .order("full_name", { ascending: true })
       .returns<Professional[]>();
 
@@ -681,6 +520,23 @@ export default function Home() {
     setPassword("");
   }
 
+  async function writeAuditLog(entityTable: string, entityId: string | null, action: string, newData?: Record<string, unknown>) {
+    if (!isSupabaseConfigured || !profile?.id) return;
+
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.from("audit_log").insert({
+      actor_id: profile.id,
+      entity_table: entityTable,
+      entity_id: entityId,
+      action,
+      new_data: newData ?? null
+    });
+
+    if (error) {
+      console.warn("Falha ao registrar auditoria", error.message);
+    }
+  }
+
   function resetClientForm() {
     setClientForm({ name: "", notes: "", contacts: [{ ...emptyClientContact }] });
     setEditingClientId(null);
@@ -820,7 +676,7 @@ export default function Home() {
     if (deletedContactIds.length > 0) {
       const { error: deleteContactsError } = await supabase
         .from("client_contacts")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .in("id", deletedContactIds);
 
       if (deleteContactsError) {
@@ -873,6 +729,17 @@ export default function Home() {
       }
     }
 
+    void writeAuditLog("clients", clientId, editingClientId ? "update" : "insert", {
+      name: clientForm.name.trim(),
+      contacts_count: validContacts.length
+    });
+
+    if (deletedContactIds.length > 0) {
+      void writeAuditLog("client_contacts", clientId, "soft_delete_batch", {
+        contact_ids: deletedContactIds
+      });
+    }
+
     resetClientForm();
     setIsClientModalOpen(false);
     await loadClients();
@@ -894,13 +761,18 @@ export default function Home() {
 
     setIsClientsLoading(true);
     const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.from("clients").delete().eq("id", client.id);
+    const { error } = await supabase
+      .from("clients")
+      .update({ deleted_at: new Date().toISOString(), status: "inactive" })
+      .eq("id", client.id);
 
     if (error) {
       setClientsError(error.message);
       setIsClientsLoading(false);
       return;
     }
+
+    void writeAuditLog("clients", client.id, "soft_delete", { name: client.name });
 
     if (selectedClient?.id === client.id) {
       setSelectedClient(null);
@@ -1060,15 +932,26 @@ export default function Home() {
       is_active: true
     };
 
-    const { error } = editingProfessionalId
+    let professionalId = editingProfessionalId;
+    const professionalResult = editingProfessionalId
       ? await supabase.from("professionals").update(payload).eq("id", editingProfessionalId)
-      : await supabase.from("professionals").insert(payload);
+      : await supabase.from("professionals").insert(payload).select("id").single<{ id: string }>();
 
-    if (error) {
-      setProfessionalsError(error.message);
+    if (professionalResult.error) {
+      setProfessionalsError(professionalResult.error.message);
       setIsProfessionalsLoading(false);
       return;
     }
+
+    if (!editingProfessionalId && "data" in professionalResult && professionalResult.data) {
+      professionalId = professionalResult.data.id;
+    }
+
+    void writeAuditLog("professionals", professionalId, editingProfessionalId ? "update" : "insert", {
+      full_name: payload.full_name,
+      email: payload.email,
+      function: payload.function
+    });
 
     resetProfessionalForm();
     setIsProfessionalModalOpen(false);
@@ -1091,13 +974,21 @@ export default function Home() {
 
     setIsProfessionalsLoading(true);
     const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.from("professionals").delete().eq("id", professional.id);
+    const { error } = await supabase
+      .from("professionals")
+      .update({ deleted_at: new Date().toISOString(), is_active: false })
+      .eq("id", professional.id);
 
     if (error) {
       setProfessionalsError(error.message);
       setIsProfessionalsLoading(false);
       return;
     }
+
+    void writeAuditLog("professionals", professional.id, "soft_delete", {
+      full_name: professional.full_name,
+      email: professional.email
+    });
 
     if (selectedProfessional?.id === professional.id) {
       setSelectedProfessional(null);
@@ -1194,15 +1085,26 @@ export default function Home() {
       target_ends_on: projectForm.target_ends_on || null
     };
 
-    const { error } = editingProjectId
+    let projectId = editingProjectId;
+    const projectResult = editingProjectId
       ? await supabase.from("projects").update(payload).eq("id", editingProjectId)
-      : await supabase.from("projects").insert(payload);
+      : await supabase.from("projects").insert(payload).select("id").single<{ id: string }>();
 
-    if (error) {
-      setProjectsError(error.message);
+    if (projectResult.error) {
+      setProjectsError(projectResult.error.message);
       setIsProjectsLoading(false);
       return;
     }
+
+    if (!editingProjectId && "data" in projectResult && projectResult.data) {
+      projectId = projectResult.data.id;
+    }
+
+    void writeAuditLog("projects", projectId, editingProjectId ? "update" : "insert", {
+      project_number: payload.project_number,
+      name: payload.name,
+      client_id: payload.client_id
+    });
 
     resetProjectForm();
     setIsProjectModalOpen(false);
@@ -1225,13 +1127,21 @@ export default function Home() {
 
     setIsProjectsLoading(true);
     const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.from("projects").delete().eq("id", project.id);
+    const { error } = await supabase
+      .from("projects")
+      .update({ deleted_at: new Date().toISOString(), status: "cancelled" })
+      .eq("id", project.id);
 
     if (error) {
       setProjectsError(error.message);
       setIsProjectsLoading(false);
       return;
     }
+
+    void writeAuditLog("projects", project.id, "soft_delete", {
+      project_number: project.project_number,
+      name: project.name
+    });
 
     if (selectedProject?.id === project.id) {
       setSelectedProject(null);
