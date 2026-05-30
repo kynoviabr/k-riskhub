@@ -93,6 +93,50 @@ export type Project = {
   portfolio_manager?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
 };
 
+export type RiskStatus = "open" | "in_progress" | "mitigated" | "closed" | "accepted";
+
+export type Risk = {
+  id: string;
+  project_id: string;
+  sequence_number: number | null;
+  group_name: string;
+  phase: string | null;
+  description: string;
+  origin: string | null;
+  identified_on: string | null;
+  main_impact: string | null;
+  probability_label: string | null;
+  probability_score: number | null;
+  impact_label: string | null;
+  impact_score: number | null;
+  response_plan: string | null;
+  responsible_id: string | null;
+  responsible_name: string | null;
+  status: RiskStatus;
+  closed_on: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  deleted_at?: string | null;
+  score: number | null;
+  projects?: Pick<Project, "id" | "project_number" | "name"> & {
+    clients?: Pick<Client, "id" | "name"> | null;
+  } | null;
+};
+
+export type RiskForm = {
+  project_id: string;
+  group_name: string;
+  phase: string;
+  description: string;
+  origin: string;
+  main_impact: string;
+  probability_score: string;
+  impact_score: string;
+  response_plan: string;
+  responsible_name: string;
+  status: RiskStatus;
+};
+
 export type ProjectForm = {
   client_id: string;
   project_number: string;
@@ -133,6 +177,20 @@ export const emptyProjectForm: ProjectForm = {
   target_ends_on: ""
 };
 
+export const emptyRiskForm: RiskForm = {
+  project_id: "",
+  group_name: "",
+  phase: "",
+  description: "",
+  origin: "",
+  main_impact: "",
+  probability_score: "3",
+  impact_score: "3",
+  response_plan: "",
+  responsible_name: "",
+  status: "open"
+};
+
 export const projectPhaseOptions = [
   "Preparação",
   "Descoberta",
@@ -160,6 +218,43 @@ export const projectStatusLabels: Record<ProjectStatus, string> = {
   completed: "Concluído",
   cancelled: "Cancelado"
 };
+
+export const riskStatusLabels: Record<RiskStatus, string> = {
+  open: "Aberto",
+  in_progress: "Em andamento",
+  mitigated: "Mitigado",
+  closed: "Fechado",
+  accepted: "Aceito"
+};
+
+export const riskGroupOptions = [
+  "Técnico",
+  "Cronograma",
+  "Financeiro",
+  "Escopo",
+  "Recursos",
+  "Stakeholders",
+  "Qualidade",
+  "Fornecedores",
+  "Governança",
+  "Segurança"
+];
+
+export const riskScoreLabels: Record<number, string> = {
+  1: "Muito baixo",
+  2: "Baixo",
+  3: "Médio",
+  4: "Alto",
+  5: "Muito alto"
+};
+
+export function getRiskSeverity(score: number | null | undefined) {
+  if (!score) return "Não avaliado";
+  if (score >= 16) return "Crítico";
+  if (score >= 10) return "Alto";
+  if (score >= 5) return "Médio";
+  return "Baixo";
+}
 
 export function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 13);

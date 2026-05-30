@@ -32,25 +32,31 @@ import {
   type Profile,
   type Project,
   type ProjectForm,
+  type Risk,
+  type RiskForm,
   emptyClientContact,
   emptyProfessionalForm,
   emptyProjectForm,
+  emptyRiskForm,
   formatPhone,
   hasContactData,
   isValidEmail,
   isValidPhone,
-  normalizeEmail
+  normalizeEmail,
+  riskScoreLabels
 } from "@/lib/domain";
 import { ClientsModule } from "@/components/clients-module";
 import { ProfessionalsModule } from "@/components/professionals-module";
 import { ProjectsModule } from "@/components/projects-module";
+import { RisksModule } from "@/components/risks-module";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 type PendingDelete =
   | { type: "client"; client: Client }
   | { type: "contact"; index: number; contactName: string }
   | { type: "project"; project: Project }
-  | { type: "professional"; professional: Professional };
+  | { type: "professional"; professional: Professional }
+  | { type: "risk"; risk: Risk };
 
 const sampleProjects = [
   {
@@ -190,6 +196,13 @@ export default function Home() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectForm, setProjectForm] = useState<ProjectForm>({ ...emptyProjectForm });
+  const [risksData, setRisksData] = useState<Risk[]>([]);
+  const [risksError, setRisksError] = useState("");
+  const [isRisksLoading, setIsRisksLoading] = useState(false);
+  const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
+  const [selectedRisk, setSelectedRisk] = useState<Risk | null>(null);
+  const [editingRiskId, setEditingRiskId] = useState<string | null>(null);
+  const [riskForm, setRiskForm] = useState<RiskForm>({ ...emptyRiskForm });
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [professionalsError, setProfessionalsError] = useState("");
   const [isProfessionalsLoading, setIsProfessionalsLoading] = useState(false);
@@ -315,6 +328,32 @@ export default function Home() {
     setIsProfessionalsLoading(false);
   }, []);
 
+  const loadRisks = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+
+    setIsRisksLoading(true);
+    setRisksError("");
+
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("risks")
+      .select("id, project_id, sequence_number, group_name, phase, description, origin, identified_on, main_impact, probability_label, probability_score, impact_label, impact_score, response_plan, responsible_id, responsible_name, status, closed_on, created_by, created_at, deleted_at, score, projects(id, project_number, name, clients(id, name))")
+      .is("deleted_at", null)
+      .order("score", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .returns<Risk[]>();
+
+    if (error) {
+      setRisksError(error.message);
+      setRisksData([]);
+      setIsRisksLoading(false);
+      return;
+    }
+
+    setRisksData(data ?? []);
+    setIsRisksLoading(false);
+  }, []);
+
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("k-riskhub-theme");
     if (storedTheme === "dark") {
@@ -343,7 +382,11 @@ export default function Home() {
     if (activeModule === "Profissionais") {
       void loadProfessionals();
     }
-  }, [activeModule, loadAdminUsers, loadClients, loadProfessionals, loadProjects]);
+    if (activeModule === "Riscos") {
+      void loadRisks();
+      void loadProjects();
+    }
+  }, [activeModule, loadAdminUsers, loadClients, loadProfessionals, loadProjects, loadRisks]);
 
   function toggleTheme() {
     setTheme((currentTheme) => {
@@ -809,6 +852,14 @@ export default function Home() {
       return;
     }
 
+    if (pendingDelete.type === "risk") {
+      const riskToDelete = pendingDelete.risk;
+      setPendingDelete(null);
+      setDeleteConfirmationText("");
+      await deleteRisk(riskToDelete);
+      return;
+    }
+
     removeClientContactImmediately(pendingDelete.index);
     setPendingDelete(null);
     setDeleteConfirmationText("");
@@ -1151,12 +1202,168 @@ export default function Home() {
     await loadProjects();
   }
 
+  function resetRiskForm() {
+    setRiskForm({ ...emptyRiskForm });
+    setEditingRiskId(null);
+    setRisksError("");
+  }
+
+  function openNewRiskModal() {
+    resetRiskForm();
+    setRiskForm((current) => ({
+      ...current,
+      project_id: projectsData[0]?.id || ""
+    }));
+    setIsRiskModalOpen(true);
+  }
+
+  function openRiskDetails(risk: Risk) {
+    setSelectedRisk(risk);
+  }
+
+  function openEditRiskModal(risk: Risk) {
+    setRiskForm({
+      project_id: risk.project_id,
+      group_name: risk.group_name,
+      phase: risk.phase || "",
+      description: risk.description,
+      origin: risk.origin || "",
+      main_impact: risk.main_impact || "",
+      probability_score: String(risk.probability_score || 3),
+      impact_score: String(risk.impact_score || 3),
+      response_plan: risk.response_plan || "",
+      responsible_name: risk.responsible_name || "",
+      status: risk.status
+    });
+    setEditingRiskId(risk.id);
+    setRisksError("");
+    setIsRiskModalOpen(true);
+  }
+
+  async function saveRisk() {
+    setRisksError("");
+
+    if (!riskForm.project_id) {
+      setRisksError("Selecione o projeto do risco.");
+      return;
+    }
+
+    if (!riskForm.group_name) {
+      setRisksError("Selecione o grupo do risco.");
+      return;
+    }
+
+    if (!riskForm.description.trim()) {
+      setRisksError("Informe a descrição do risco.");
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setRisksError("Supabase não configurado para salvar riscos.");
+      return;
+    }
+
+    setIsRisksLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const probabilityScore = Number(riskForm.probability_score);
+    const impactScore = Number(riskForm.impact_score);
+    const nextSequenceNumber = editingRiskId
+      ? risksData.find((risk) => risk.id === editingRiskId)?.sequence_number || null
+      : Math.max(0, ...risksData
+          .filter((risk) => risk.project_id === riskForm.project_id)
+          .map((risk) => risk.sequence_number || 0)) + 1;
+
+    const payload = {
+      project_id: riskForm.project_id,
+      sequence_number: nextSequenceNumber,
+      group_name: riskForm.group_name,
+      phase: riskForm.phase || null,
+      description: riskForm.description.trim(),
+      origin: riskForm.origin.trim() || null,
+      main_impact: riskForm.main_impact.trim() || null,
+      probability_score: probabilityScore,
+      probability_label: riskScoreLabels[probabilityScore],
+      impact_score: impactScore,
+      impact_label: riskScoreLabels[impactScore],
+      response_plan: riskForm.response_plan.trim() || null,
+      responsible_name: riskForm.responsible_name.trim() || null,
+      status: riskForm.status,
+      closed_on: riskForm.status === "closed" ? new Date().toISOString().slice(0, 10) : null,
+      created_by: profile?.id || null
+    };
+
+    let riskId = editingRiskId;
+    const riskResult = editingRiskId
+      ? await supabase.from("risks").update(payload).eq("id", editingRiskId)
+      : await supabase.from("risks").insert(payload).select("id").single<{ id: string }>();
+
+    if (riskResult.error) {
+      setRisksError(riskResult.error.message);
+      setIsRisksLoading(false);
+      return;
+    }
+
+    if (!editingRiskId && "data" in riskResult && riskResult.data) {
+      riskId = riskResult.data.id;
+    }
+
+    void writeAuditLog("risks", riskId, editingRiskId ? "update" : "insert", {
+      project_id: payload.project_id,
+      group_name: payload.group_name,
+      status: payload.status
+    });
+
+    resetRiskForm();
+    setIsRiskModalOpen(false);
+    await loadRisks();
+  }
+
+  function requestDeleteRisk(risk: Risk) {
+    setRisksError("");
+    setDeleteConfirmationText("");
+    setPendingDelete({ type: "risk", risk });
+  }
+
+  async function deleteRisk(risk: Risk) {
+    setRisksError("");
+
+    if (!isSupabaseConfigured) {
+      setRisksError("Supabase não configurado para remover riscos.");
+      return;
+    }
+
+    setIsRisksLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase
+      .from("risks")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", risk.id);
+
+    if (error) {
+      setRisksError(error.message);
+      setIsRisksLoading(false);
+      return;
+    }
+
+    void writeAuditLog("risks", risk.id, "soft_delete", {
+      project_id: risk.project_id,
+      sequence_number: risk.sequence_number
+    });
+
+    if (selectedRisk?.id === risk.id) {
+      setSelectedRisk(null);
+    }
+
+    await loadRisks();
+  }
+
   const displayName = profile?.full_name || profile?.email || "Usuário";
   const isClientProfile = profile?.role === "client";
   const isAdminUsersView = isAdminProfile && activeModule === "Administração";
   const isClientsView = activeModule === "Clientes";
   const isProjectsView = activeModule === "Projetos";
   const isProfessionalsView = activeModule === "Profissionais";
+  const isRisksView = activeModule === "Riscos";
   const projectManagers = professionals.filter((professional) =>
     ["project_manager", "project_coordinator", "project_lead"].includes(professional.function)
     && professional.is_active
@@ -1315,7 +1522,7 @@ export default function Home() {
             <div className="section-header">
               <div>
                 <p className="eyebrow">Visão geral</p>
-                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : isProjectsView ? "Projetos" : isProfessionalsView ? "Profissionais" : "Dashboard"}</h2>
+                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : isProjectsView ? "Projetos" : isProfessionalsView ? "Profissionais" : isRisksView ? "Riscos" : "Dashboard"}</h2>
               </div>
               {isAdminUsersView ? (
                 <button className="ghost-button" onClick={loadAdminUsers}>
@@ -1344,6 +1551,14 @@ export default function Home() {
                 >
                   <Plus size={16} />
                   Novo profissional
+                </button>
+              ) : isRisksView && isAdminProfile ? (
+                <button
+                  className="button"
+                  onClick={openNewRiskModal}
+                >
+                  <Plus size={16} />
+                  Novo risco
                 </button>
               ) : !isClientProfile ? (
                 <button className="button">
@@ -1501,6 +1716,32 @@ export default function Home() {
                 }}
                 onProjectFormChange={setProjectForm}
                 onSaveProject={saveProject}
+              />
+            ) : isRisksView ? (
+              <RisksModule
+                risksData={risksData}
+                projectsData={projectsData}
+                risksError={risksError}
+                isRisksLoading={isRisksLoading}
+                isRiskModalOpen={isRiskModalOpen}
+                selectedRisk={selectedRisk}
+                editingRiskId={editingRiskId}
+                riskForm={riskForm}
+                isAdminProfile={Boolean(isAdminProfile)}
+                onLoadRisks={loadRisks}
+                onOpenRiskDetails={openRiskDetails}
+                onCloseRiskDetails={() => setSelectedRisk(null)}
+                onOpenEditRiskModal={(risk) => {
+                  setSelectedRisk(null);
+                  openEditRiskModal(risk);
+                }}
+                onRequestDeleteRisk={requestDeleteRisk}
+                onCloseRiskModal={() => {
+                  resetRiskForm();
+                  setIsRiskModalOpen(false);
+                }}
+                onRiskFormChange={setRiskForm}
+                onSaveRisk={saveRisk}
               />
             ) : (
               <>
@@ -1695,7 +1936,7 @@ export default function Home() {
               <div>
                 <p className="eyebrow">Confirmação</p>
                 <h3 id="delete-confirmation-title">
-                  Remover {pendingDelete.type === "client" ? "cliente" : pendingDelete.type === "project" ? "projeto" : pendingDelete.type === "professional" ? "profissional" : "contato"}
+                  Remover {pendingDelete.type === "client" ? "cliente" : pendingDelete.type === "project" ? "projeto" : pendingDelete.type === "professional" ? "profissional" : pendingDelete.type === "risk" ? "risco" : "contato"}
                 </h3>
               </div>
               <button
@@ -1717,7 +1958,9 @@ export default function Home() {
                   ? `Esta ação removerá o projeto "${pendingDelete.project.name}" e seus vínculos dependentes.`
                   : pendingDelete.type === "professional"
                     ? `Esta ação removerá o profissional "${pendingDelete.professional.full_name}".`
-                    : `Esta ação removerá o contato "${pendingDelete.contactName}" deste cliente.`}
+                    : pendingDelete.type === "risk"
+                      ? `Esta ação removerá o risco "${pendingDelete.risk.sequence_number ? `#${pendingDelete.risk.sequence_number}` : pendingDelete.risk.description}".`
+                      : `Esta ação removerá o contato "${pendingDelete.contactName}" deste cliente.`}
             </p>
             <label className="confirm-delete-field">
               Digite remover para confirmar
@@ -1741,12 +1984,12 @@ export default function Home() {
               </button>
               <button
                 className="button danger-button"
-                disabled={deleteConfirmationText.trim().toLocaleLowerCase("pt-BR") !== "remover" || isClientsLoading || isProjectsLoading || isProfessionalsLoading}
+                disabled={deleteConfirmationText.trim().toLocaleLowerCase("pt-BR") !== "remover" || isClientsLoading || isProjectsLoading || isProfessionalsLoading || isRisksLoading}
                 onClick={confirmPendingDelete}
                 type="button"
               >
                 <Trash2 size={16} />
-                {isClientsLoading || isProjectsLoading || isProfessionalsLoading ? "Removendo..." : "Remover"}
+                {isClientsLoading || isProjectsLoading || isProfessionalsLoading || isRisksLoading ? "Removendo..." : "Remover"}
               </button>
             </div>
           </section>

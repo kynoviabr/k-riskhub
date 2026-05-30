@@ -712,9 +712,15 @@ small {
   grid-template-columns: minmax(180px, 1.2fr) 170px minmax(190px, 1fr) 150px 90px 150px;
 }
 
+.risks-row {
+  min-width: 1180px;
+  grid-template-columns: 70px minmax(250px, 1.4fr) minmax(170px, 1fr) 120px 70px 110px 120px 150px;
+}
+
 .clients-table,
 .projects-table,
-.professionals-table {
+.professionals-table,
+.risks-table {
   scrollbar-width: thin;
 }
 
