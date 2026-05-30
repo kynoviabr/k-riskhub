@@ -1247,7 +1247,7 @@ export default function Home() {
               <div className="brand-mark">K</div>
               <div>
                 <strong>K-RiskHub</strong>
-                <span>Workspace de riscos</span>
+                <span>Project Risk Management</span>
               </div>
             </div>
 
