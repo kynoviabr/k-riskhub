@@ -173,17 +173,37 @@ export default function Home() {
       return;
     }
 
-    const supabase = getSupabaseBrowserClient();
-    const { data } = await supabase.auth.getSession();
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const sessionResult = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+      ]);
 
-    if (!data.session?.user) {
+      if (!sessionResult) {
+        setAuthMessage("Nao foi possivel carregar a sessao. Tente entrar novamente.");
+        setIsSignedIn(false);
+        setProfile(null);
+        setIsProfileLoading(false);
+        return;
+      }
+
+      const { data } = sessionResult;
+
+      if (!data.session?.user) {
+        setIsSignedIn(false);
+        setProfile(null);
+        setIsProfileLoading(false);
+        return;
+      }
+
+      await loadProfile(data.session.user.id);
+    } catch {
+      setAuthMessage("Nao foi possivel carregar a sessao. Tente entrar novamente.");
       setIsSignedIn(false);
       setProfile(null);
       setIsProfileLoading(false);
-      return;
     }
-
-    await loadProfile(data.session.user.id);
   }
 
   async function loadProfile(userId: string) {
