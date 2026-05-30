@@ -54,7 +54,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -251,7 +252,19 @@ input {
   color: var(--text);
 }
 
-input:focus {
+textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+}
+
+input:focus,
+textarea:focus {
   outline: 2px solid rgba(15, 108, 129, 0.14);
   border-color: var(--primary-2);
 }
@@ -541,7 +554,8 @@ small {
 .theme-dark .ghost-button,
 .theme-dark .icon-user,
 .theme-dark .icon-button,
-.theme-dark input {
+.theme-dark input,
+.theme-dark textarea {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
@@ -620,7 +634,8 @@ small {
 .table {
   display: grid;
   margin-top: 14px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
@@ -641,6 +656,15 @@ small {
 
 .admin-users-row {
   grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.2fr) 150px 100px 160px;
+}
+
+.clients-row {
+  min-width: 1040px;
+  grid-template-columns: minmax(160px, 1.1fr) minmax(140px, 1fr) 120px minmax(180px, 1fr) 86px 130px 150px;
+}
+
+.clients-table {
+  scrollbar-width: thin;
 }
 
 .table-row:last-child {
@@ -772,7 +796,9 @@ small {
 }
 
 .modal {
-  width: min(460px, 100%);
+  width: min(520px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -782,6 +808,14 @@ small {
 
 .account-modal {
   width: min(720px, 100%);
+}
+
+.client-details-modal {
+  width: min(680px, 100%);
+}
+
+.delete-confirmation-modal {
+  width: min(440px, 100%);
 }
 
 .modal-profile-summary {
@@ -794,6 +828,168 @@ small {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 10px;
+}
+
+.modal-form {
+  margin-top: 14px;
+}
+
+.modal-message {
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.confirm-delete-field {
+  margin-top: 14px;
+}
+
+.danger-button {
+  background: var(--danger);
+}
+
+.danger-button:hover {
+  filter: brightness(0.96);
+}
+
+.form-section-header,
+.contact-form-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.form-section-header span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.compact-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.contact-form-list {
+  display: grid;
+  gap: 10px;
+}
+
+.contact-form-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.form-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.two-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.small-icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+.link-button {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 800;
+  text-align: left;
+}
+
+.link-button:hover {
+  color: var(--primary-2);
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.danger-icon-button {
+  color: var(--danger);
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.detail-summary div,
+.detail-block,
+.contact-detail-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.detail-summary div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.detail-summary span,
+.detail-block span,
+.contact-detail-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.detail-block {
+  padding: 12px;
+}
+
+.detail-block p {
+  margin: 6px 0 0;
+  color: var(--text);
+}
+
+.detail-section-header {
+  margin-top: 16px;
+}
+
+.contact-detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.contact-detail-card {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(170px, 1fr) 130px;
+  gap: 12px;
+  padding: 12px;
+}
+
+.contact-detail-card div {
+  display: grid;
+  gap: 3px;
 }
 
 .empty-state {
