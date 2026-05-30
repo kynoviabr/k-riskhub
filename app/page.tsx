@@ -173,6 +173,7 @@ export default function Home() {
   const [adminUsersError, setAdminUsersError] = useState("");
   const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
+  const [clientStatusView, setClientStatusView] = useState<"active" | "inactive">("active");
   const [clientsError, setClientsError] = useState("");
   const [isClientsLoading, setIsClientsLoading] = useState(false);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -242,13 +243,17 @@ export default function Home() {
     setClientsError("");
 
     const supabase = getSupabaseBrowserClient();
-    const { data, error } = await supabase
+    let clientsQuery = supabase
       .from("clients")
       .select("id, name, legal_name, tax_id, status, notes, created_at, deleted_at, client_contacts(id, name, role_title, phone, email, is_primary, deleted_at)")
-      .is("deleted_at", null)
       .is("client_contacts.deleted_at", null)
-      .order("name", { ascending: true })
-      .returns<Client[]>();
+      .order("name", { ascending: true });
+
+    clientsQuery = clientStatusView === "active"
+      ? clientsQuery.is("deleted_at", null)
+      : clientsQuery.not("deleted_at", "is", null);
+
+    const { data, error } = await clientsQuery.returns<Client[]>();
 
     if (error) {
       setClientsError(error.message);
@@ -262,7 +267,7 @@ export default function Home() {
       client_contacts: client.client_contacts?.filter((contact) => !contact.deleted_at)
     })));
     setIsClientsLoading(false);
-  }, []);
+  }, [clientStatusView]);
 
   const loadProjects = useCallback(async () => {
     if (!isSupabaseConfigured) return;
@@ -1424,13 +1429,13 @@ export default function Home() {
                 <div className="metric-grid compact-metrics">
                   <article className="metric">
                     <Building2 size={15} />
-                    <span>Clientes</span>
+                    <span>{clientStatusView === "active" ? "Clientes ativos" : "Clientes inativos"}</span>
                     <strong>{clients.length}</strong>
                   </article>
                   <article className="metric">
                     <ListChecks size={15} />
-                    <span>Ativos</span>
-                    <strong>{clients.filter((client) => client.status === "active").length}</strong>
+                    <span>Status</span>
+                    <strong>{clientStatusView === "active" ? "Ativo" : "Inativo"}</strong>
                   </article>
                   <article className="metric">
                     <BriefcaseBusiness size={15} />
@@ -1448,11 +1453,33 @@ export default function Home() {
                   <div className="surface-header">
                     <div>
                       <h3>Clientes</h3>
-                      <p>Cadastro corporativo para vincular projetos, responsáveis e permissões.</p>
+                      <p>{clientStatusView === "active"
+                        ? "Cadastro corporativo para vincular projetos, responsáveis e permissões."
+                        : "Clientes removidos logicamente, mantidos para consulta e auditoria."}</p>
                     </div>
-                    <button className="ghost-button" onClick={loadClients}>
-                      Atualizar
-                    </button>
+                    <div className="surface-actions">
+                      <div aria-label="Filtrar clientes" className="segmented-control">
+                        <button
+                          aria-pressed={clientStatusView === "active"}
+                          className={clientStatusView === "active" ? "active" : ""}
+                          onClick={() => setClientStatusView("active")}
+                          type="button"
+                        >
+                          Ativos
+                        </button>
+                        <button
+                          aria-pressed={clientStatusView === "inactive"}
+                          className={clientStatusView === "inactive" ? "active" : ""}
+                          onClick={() => setClientStatusView("inactive")}
+                          type="button"
+                        >
+                          Inativos
+                        </button>
+                      </div>
+                      <button className="ghost-button" onClick={loadClients}>
+                        Atualizar
+                      </button>
+                    </div>
                   </div>
 
                   {clientsError && !isClientModalOpen ? <p className="auth-message">{clientsError}</p> : null}
@@ -1465,8 +1492,10 @@ export default function Home() {
                   ) : clients.length === 0 ? (
                     <div className="empty-state">
                       <Building2 size={20} />
-                      <strong>Nenhum cliente cadastrado</strong>
-                      <span>Crie o primeiro cliente para começar a estruturar projetos e vínculos.</span>
+                      <strong>{clientStatusView === "active" ? "Nenhum cliente ativo" : "Nenhum cliente inativo"}</strong>
+                      <span>{clientStatusView === "active"
+                        ? "Crie o primeiro cliente para começar a estruturar projetos e vínculos."
+                        : "Clientes removidos aparecerão aqui para consulta administrativa."}</span>
                     </div>
                   ) : (
                     <div className="table clients-table">
@@ -1496,7 +1525,7 @@ export default function Home() {
                               <span>{primaryContact?.role_title || "Não informado"}</span>
                               <span>{primaryContact?.email || "Não informado"}</span>
                               <span>
-                                <StatusPill status={client.status === "active" ? "Ativo" : "Inativo"} />
+                                <StatusPill status={client.deleted_at ? "Inativo" : "Ativo"} />
                               </span>
                               <span>{primaryContact?.phone || "Não informado"}</span>
                               <span className="table-actions">
@@ -1509,19 +1538,23 @@ export default function Home() {
                                 >
                                   <Eye size={14} />
                                 </button>
-                                <button className="ghost-button compact-button" onClick={() => openEditClientModal(client)} type="button">
-                                  <Pencil size={14} />
-                                  Editar
-                                </button>
-                                <button
-                                  aria-label={`Remover ${client.name}`}
-                                  className="icon-button small-icon-button danger-icon-button"
-                                  onClick={() => requestDeleteClient(client)}
-                                  title="Remover cliente"
-                                  type="button"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                {!client.deleted_at ? (
+                                  <>
+                                    <button className="ghost-button compact-button" onClick={() => openEditClientModal(client)} type="button">
+                                      <Pencil size={14} />
+                                      Editar
+                                    </button>
+                                    <button
+                                      aria-label={`Remover ${client.name}`}
+                                      className="icon-button small-icon-button danger-icon-button"
+                                      onClick={() => requestDeleteClient(client)}
+                                      title="Remover cliente"
+                                      type="button"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                ) : null}
                               </span>
                             </div>
                           );
