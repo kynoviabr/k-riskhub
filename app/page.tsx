@@ -338,7 +338,7 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("risks")
-      .select("id, project_id, sequence_number, group_name, phase, description, origin, business_impact, identified_on, main_impact, probability_label, probability_score, impact_label, impact_score, response_type, response_plan, responsible_id, responsible_name, status, closed_on, created_by, created_at, deleted_at, score, projects(id, project_number, name, clients(id, name))")
+      .select("id, project_id, sequence_number, group_name, phase, description, root_cause, origin, business_impact, identified_on, main_impact, probability_label, probability_score, impact_label, impact_score, response_type, response_plan, external_tool, external_reference_id, external_reference_url, responsible_id, responsible_name, status, closed_on, created_by, created_at, deleted_at, score, projects(id, project_number, name, clients(id, name))")
       .is("deleted_at", null)
       .order("score", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
@@ -1228,6 +1228,7 @@ export default function Home() {
       group_name: risk.group_name,
       phase: risk.phase || "",
       description: risk.description,
+      root_cause: risk.root_cause || "",
       origin: risk.origin || "",
       business_impact: risk.business_impact || "",
       identified_on: risk.identified_on || new Date().toISOString().slice(0, 10),
@@ -1236,6 +1237,9 @@ export default function Home() {
       impact_score: String(risk.impact_score || 3),
       response_type: risk.response_type || "mitigate",
       response_plan: risk.response_plan || "",
+      external_tool: risk.external_tool || "",
+      external_reference_id: risk.external_reference_id || "",
+      external_reference_url: risk.external_reference_url || "",
       responsible_name: risk.responsible_name || "",
       status: risk.status,
       closed_on: risk.closed_on || ""
@@ -1284,6 +1288,7 @@ export default function Home() {
       group_name: riskForm.group_name,
       phase: riskForm.phase || null,
       description: riskForm.description.trim(),
+      root_cause: riskForm.root_cause.trim() || null,
       origin: riskForm.origin.trim() || null,
       business_impact: riskForm.business_impact.trim() || null,
       identified_on: riskForm.identified_on || new Date().toISOString().slice(0, 10),
@@ -1294,6 +1299,9 @@ export default function Home() {
       impact_label: riskImpactLabels[impactScore],
       response_type: riskForm.response_type,
       response_plan: riskForm.response_plan.trim() || null,
+      external_tool: riskForm.external_tool.trim() || null,
+      external_reference_id: riskForm.external_reference_id.trim() || null,
+      external_reference_url: riskForm.external_reference_url.trim() || null,
       responsible_name: riskForm.responsible_name.trim() || null,
       status: riskForm.status,
       closed_on: riskForm.closed_on || (riskForm.status === "closed" ? new Date().toISOString().slice(0, 10) : null),

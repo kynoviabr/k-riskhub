@@ -94,7 +94,7 @@ export type Project = {
 };
 
 export type RiskStatus = "open" | "in_progress" | "mitigated" | "closed" | "accepted";
-export type RiskResponseType = "avoid" | "transfer" | "mitigate" | "accept" | "escalate";
+export type RiskResponseType = "avoid" | "transfer" | "research" | "mitigate" | "accept" | "escalate";
 
 export type Risk = {
   id: string;
@@ -103,6 +103,7 @@ export type Risk = {
   group_name: string;
   phase: string | null;
   description: string;
+  root_cause: string | null;
   origin: string | null;
   business_impact: string | null;
   identified_on: string | null;
@@ -113,6 +114,9 @@ export type Risk = {
   impact_score: number | null;
   response_type: RiskResponseType | null;
   response_plan: string | null;
+  external_tool: string | null;
+  external_reference_id: string | null;
+  external_reference_url: string | null;
   responsible_id: string | null;
   responsible_name: string | null;
   status: RiskStatus;
@@ -131,6 +135,7 @@ export type RiskForm = {
   group_name: string;
   phase: string;
   description: string;
+  root_cause: string;
   origin: string;
   business_impact: string;
   identified_on: string;
@@ -139,6 +144,9 @@ export type RiskForm = {
   impact_score: string;
   response_type: RiskResponseType;
   response_plan: string;
+  external_tool: string;
+  external_reference_id: string;
+  external_reference_url: string;
   responsible_name: string;
   status: RiskStatus;
   closed_on: string;
@@ -189,6 +197,7 @@ export const emptyRiskForm: RiskForm = {
   group_name: "",
   phase: "",
   description: "",
+  root_cause: "",
   origin: "",
   business_impact: "",
   identified_on: new Date().toISOString().slice(0, 10),
@@ -197,6 +206,9 @@ export const emptyRiskForm: RiskForm = {
   impact_score: "3",
   response_type: "mitigate",
   response_plan: "",
+  external_tool: "",
+  external_reference_id: "",
+  external_reference_url: "",
   responsible_name: "",
   status: "in_progress",
   closed_on: ""
@@ -237,11 +249,12 @@ export const riskStatusLabels: Record<RiskStatus, string> = {
 };
 
 export const riskResponseTypeLabels: Record<RiskResponseType, string> = {
-  avoid: "Avoid",
-  transfer: "Transfer",
-  mitigate: "Mitigate",
-  accept: "Accept",
-  escalate: "Escalate"
+  avoid: "Evitar",
+  transfer: "Transferir",
+  research: "Pesquisar",
+  mitigate: "Mitigar",
+  accept: "Aceitar",
+  escalate: "Escalar"
 };
 
 export const riskOriginOptions = ["Externo", "Interno"];
@@ -265,6 +278,8 @@ export const riskBusinessImpactOptions = [
   "Fornecedores / Terceiros"
 ];
 
+export const riskExternalToolOptions = ["Asana", "Jira", "Planner", "Azure DevOps", "Outra"];
+
 export const riskScoreLabels: Record<number, string> = {
   1: "Muito Pequena",
   2: "Pequena",
@@ -283,17 +298,17 @@ export const riskImpactLabels: Record<number, string> = {
 
 export function getRiskSeverity(score: number | null | undefined) {
   if (!score) return "Não avaliado";
-  if (score > 22) return "Risco Extremamente Alto";
+  if (score > 16) return "Risco Extremamente Alto";
   if (score >= 11) return "Risco Alto";
-  if (score >= 6) return "Risco Moderado";
+  if (score >= 5) return "Risco Moderado";
   return "Risco Baixo";
 }
 
 export function getRiskSeverityClass(score: number | null | undefined) {
   if (!score) return "nao-avaliado";
-  if (score > 22) return "extremo";
+  if (score > 16) return "extremo";
   if (score >= 11) return "alto";
-  if (score >= 6) return "moderado";
+  if (score >= 5) return "moderado";
   return "baixo";
 }
 

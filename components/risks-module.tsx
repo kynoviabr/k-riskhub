@@ -16,7 +16,7 @@ import {
   getRiskSeverity,
   getRiskSeverityClass,
   projectPhaseOptions,
-  riskBusinessImpactOptions,
+  riskExternalToolOptions,
   riskGroupOptions,
   riskImpactLabels,
   riskMainImpactOptions,
@@ -259,12 +259,12 @@ export function RisksModule({
               <p>{selectedRisk.description}</p>
             </div>
             <div className="detail-block">
-              <span>Origem</span>
-              <p>{selectedRisk.origin || "Não informada."}</p>
+              <span>Causa raiz</span>
+              <p>{selectedRisk.root_cause || "Não informada."}</p>
             </div>
             <div className="detail-block">
-              <span>Impacto no negócio</span>
-              <p>{selectedRisk.business_impact || "Não informado."}</p>
+              <span>Origem</span>
+              <p>{selectedRisk.origin || "Não informada."}</p>
             </div>
             <div className="detail-block">
               <span>Impacto principal</span>
@@ -275,8 +275,24 @@ export function RisksModule({
               <p>{selectedRisk.response_type ? riskResponseTypeLabels[selectedRisk.response_type] : "Não informado."}</p>
             </div>
             <div className="detail-block">
-              <span>Ação / resposta planejada</span>
+              <span>Ação / resposta planejada (5W2H)</span>
               <p>{selectedRisk.response_plan || "Não informada."}</p>
+            </div>
+            <div className="detail-block">
+              <span>Referência externa</span>
+              {selectedRisk.external_reference_url ? (
+                <p>
+                  <a href={selectedRisk.external_reference_url} rel="noreferrer" target="_blank">
+                    {selectedRisk.external_tool || "Ferramenta externa"}
+                    {selectedRisk.external_reference_id ? ` - ${selectedRisk.external_reference_id}` : ""}
+                  </a>
+                </p>
+              ) : (
+                <p>
+                  {[selectedRisk.external_tool, selectedRisk.external_reference_id].filter(Boolean).join(" - ") ||
+                    "Nenhuma referência externa informada."}
+                </p>
+              )}
             </div>
 
             {isAdminProfile ? (
@@ -357,18 +373,6 @@ export function RisksModule({
                       ))}
                     </select>
                   </label>
-                  <label>
-                    Impacto no negócio
-                    <select
-                      value={riskForm.business_impact}
-                      onChange={(event) => onRiskFormChange((current) => ({ ...current, business_impact: event.target.value }))}
-                    >
-                      <option value="">Selecione</option>
-                      {riskBusinessImpactOptions.map((impact) => (
-                        <option key={impact} value={impact}>{impact}</option>
-                      ))}
-                    </select>
-                  </label>
                   <label className="span-3">
                     Descrição do risco
                     <textarea
@@ -376,6 +380,15 @@ export function RisksModule({
                       value={riskForm.description}
                       onChange={(event) => onRiskFormChange((current) => ({ ...current, description: event.target.value }))}
                       placeholder="Descreva o evento de risco"
+                    />
+                  </label>
+                  <label className="span-3">
+                    Causa raiz
+                    <textarea
+                      className="compact-textarea"
+                      value={riskForm.root_cause}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, root_cause: event.target.value }))}
+                      placeholder="Informe a causa raiz ou hipótese principal do risco"
                     />
                   </label>
                 </div>
@@ -493,12 +506,52 @@ export function RisksModule({
                     />
                   </label>
                   <label className="span-2">
-                    Ação / resposta planejada
+                    Ação / resposta planejada (5W2H)
                     <textarea
                       className="compact-textarea"
                       value={riskForm.response_plan}
                       onChange={(event) => onRiskFormChange((current) => ({ ...current, response_plan: event.target.value }))}
                       placeholder="Estratégia de resposta ou mitigação inicial"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="form-panel">
+                <div className="form-section-header">
+                  <div>
+                    <strong>Referência externa</strong>
+                    <span>Use apenas para apontar a tarefa operacional em Asana, Jira, Planner ou ferramenta equivalente.</span>
+                  </div>
+                </div>
+                <div className="form-grid risk-form-grid">
+                  <label>
+                    Ferramenta
+                    <select
+                      value={riskForm.external_tool}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, external_tool: event.target.value }))}
+                    >
+                      <option value="">Não vinculada</option>
+                      {riskExternalToolOptions.map((tool) => (
+                        <option key={tool} value={tool}>{tool}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    ID externo
+                    <input
+                      value={riskForm.external_reference_id}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, external_reference_id: event.target.value }))}
+                      placeholder="Ex.: KRISK-123, TASK-45"
+                    />
+                  </label>
+                  <label>
+                    Link externo
+                    <input
+                      value={riskForm.external_reference_url}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, external_reference_url: event.target.value }))}
+                      placeholder="https://"
+                      type="url"
                     />
                   </label>
                 </div>
