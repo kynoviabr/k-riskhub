@@ -104,6 +104,7 @@ export type Risk = {
   phase: string | null;
   description: string;
   origin: string | null;
+  business_impact: string | null;
   identified_on: string | null;
   main_impact: string | null;
   probability_label: string | null;
@@ -131,6 +132,7 @@ export type RiskForm = {
   phase: string;
   description: string;
   origin: string;
+  business_impact: string;
   identified_on: string;
   main_impact: string;
   probability_score: string;
@@ -188,6 +190,7 @@ export const emptyRiskForm: RiskForm = {
   phase: "",
   description: "",
   origin: "",
+  business_impact: "",
   identified_on: new Date().toISOString().slice(0, 10),
   main_impact: "",
   probability_score: "3",
@@ -246,6 +249,21 @@ export const riskOriginOptions = ["Externo", "Interno"];
 export const riskGroupOptions = ["Estratégico", "Ambiental", "Operacional", "Técnico"];
 
 export const riskMainImpactOptions = ["Custo", "Escopo", "Tempo", "Qualidade", "Resultado"];
+
+export const riskBusinessImpactOptions = [
+  "Reputacional",
+  "Comercial / Vendas",
+  "Financeiro",
+  "Legal / Regulatório",
+  "Cliente / Experiência",
+  "Operacional",
+  "Tecnológico",
+  "Segurança da Informação",
+  "Estratégico",
+  "Produto / Qualidade",
+  "Pessoas / Equipe",
+  "Fornecedores / Terceiros"
+];
 
 export const riskScoreLabels: Record<number, string> = {
   1: "Muito Pequena",

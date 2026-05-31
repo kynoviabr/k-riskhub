@@ -338,7 +338,7 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("risks")
-      .select("id, project_id, sequence_number, group_name, phase, description, origin, identified_on, main_impact, probability_label, probability_score, impact_label, impact_score, response_type, response_plan, responsible_id, responsible_name, status, closed_on, created_by, created_at, deleted_at, score, projects(id, project_number, name, clients(id, name))")
+      .select("id, project_id, sequence_number, group_name, phase, description, origin, business_impact, identified_on, main_impact, probability_label, probability_score, impact_label, impact_score, response_type, response_plan, responsible_id, responsible_name, status, closed_on, created_by, created_at, deleted_at, score, projects(id, project_number, name, clients(id, name))")
       .is("deleted_at", null)
       .order("score", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
@@ -1229,6 +1229,7 @@ export default function Home() {
       phase: risk.phase || "",
       description: risk.description,
       origin: risk.origin || "",
+      business_impact: risk.business_impact || "",
       identified_on: risk.identified_on || new Date().toISOString().slice(0, 10),
       main_impact: risk.main_impact || "",
       probability_score: String(risk.probability_score || 3),
@@ -1284,6 +1285,7 @@ export default function Home() {
       phase: riskForm.phase || null,
       description: riskForm.description.trim(),
       origin: riskForm.origin.trim() || null,
+      business_impact: riskForm.business_impact.trim() || null,
       identified_on: riskForm.identified_on || new Date().toISOString().slice(0, 10),
       main_impact: riskForm.main_impact.trim() || null,
       probability_score: probabilityScore,

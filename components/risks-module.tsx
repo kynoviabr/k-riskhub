@@ -16,6 +16,7 @@ import {
   getRiskSeverity,
   getRiskSeverityClass,
   projectPhaseOptions,
+  riskBusinessImpactOptions,
   riskGroupOptions,
   riskImpactLabels,
   riskMainImpactOptions,
@@ -262,6 +263,10 @@ export function RisksModule({
               <p>{selectedRisk.origin || "Não informada."}</p>
             </div>
             <div className="detail-block">
+              <span>Impacto no negócio</span>
+              <p>{selectedRisk.business_impact || "Não informado."}</p>
+            </div>
+            <div className="detail-block">
               <span>Impacto principal</span>
               <p>{selectedRisk.main_impact || "Não informado."}</p>
             </div>
@@ -298,172 +303,217 @@ export function RisksModule({
               <div>
                 <p className="eyebrow">Riscos</p>
                 <h3 id="risk-modal-title">{editingRiskId ? "Editar risco" : "Novo risco"}</h3>
+                <span className="modal-subtitle">Cadastre o risco no padrão do inventário e mantenha a resposta rastreável.</span>
               </div>
               <button className="icon-button" aria-label="Fechar" onClick={onCloseRiskModal}>
                 <X size={18} />
               </button>
             </div>
 
-            <div className="field-stack modal-form">
-              <div className="form-grid two-columns">
-                <label>
-                  Projeto
-                  <select
-                    value={riskForm.project_id}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, project_id: event.target.value }))}
-                  >
-                    <option value="">Selecione</option>
-                    {projectsData.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.project_number} - {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Grupo
-                  <select
-                    value={riskForm.group_name}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, group_name: event.target.value }))}
-                  >
-                    <option value="">Selecione</option>
-                    {riskGroupOptions.map((group) => (
-                      <option key={group} value={group}>{group}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label>
-                Descrição do risco
-                <textarea
-                  value={riskForm.description}
-                  onChange={(event) => onRiskFormChange((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="Descreva o evento de risco"
-                />
-              </label>
-              <label>
-                Origem
-                <select
-                  value={riskForm.origin}
-                  onChange={(event) => onRiskFormChange((current) => ({ ...current, origin: event.target.value }))}
-                >
-                  <option value="">Selecione</option>
-                  {riskOriginOptions.map((origin) => (
-                    <option key={origin} value={origin}>{origin}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Impacto principal
-                <select
-                  value={riskForm.main_impact}
-                  onChange={(event) => onRiskFormChange((current) => ({ ...current, main_impact: event.target.value }))}
-                >
-                  <option value="">Selecione</option>
-                  {riskMainImpactOptions.map((impact) => (
-                    <option key={impact} value={impact}>{impact}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="form-grid two-columns">
-                <label>
-                  Data identificação
-                  <input
-                    type="date"
-                    value={riskForm.identified_on}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, identified_on: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Data encerramento risco
-                  <input
-                    type="date"
-                    value={riskForm.closed_on}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, closed_on: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="form-grid two-columns">
-                <label>
-                  Probabilidade
-                  <select
-                    value={riskForm.probability_score}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, probability_score: event.target.value }))}
-                  >
-                    {scoreOptions.map((score) => (
-                      <option key={score} value={score}>{score} - {riskScoreLabels[score]}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Impacto
-                  <select
-                    value={riskForm.impact_score}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, impact_score: event.target.value }))}
-                  >
-                    {scoreOptions.map((score) => (
-                      <option key={score} value={score}>{score} - {riskImpactLabels[score]}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="form-grid two-columns">
-                <label>
-                  Fase
-                  <select
-                    value={riskForm.phase}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, phase: event.target.value }))}
-                  >
-                    <option value="">Não definida</option>
-                    {projectPhaseOptions.map((phase) => (
-                      <option key={phase} value={phase}>{phase}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Status
-                  <select
-                    value={riskForm.status}
-                    onChange={(event) => onRiskFormChange((current) => ({ ...current, status: event.target.value as RiskStatus }))}
-                  >
-                    {Object.entries(riskStatusLabels).map(([status, label]) => (
-                      <option key={status} value={status}>{label}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label>
-                Responsável
-                <input
-                  value={riskForm.responsible_name}
-                  onChange={(event) => onRiskFormChange((current) => ({ ...current, responsible_name: event.target.value }))}
-                  placeholder="Nome do responsável"
-                />
-              </label>
-              <label>
-                Tipo de resposta ao risco
-                <select
-                  value={riskForm.response_type}
-                  onChange={(event) => onRiskFormChange((current) => ({ ...current, response_type: event.target.value as RiskResponseType }))}
-                >
-                  {Object.entries(riskResponseTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Ação / resposta planejada
-                <textarea
-                  value={riskForm.response_plan}
-                  onChange={(event) => onRiskFormChange((current) => ({ ...current, response_plan: event.target.value }))}
-                  placeholder="Estratégia de resposta ou mitigação inicial"
-                />
-              </label>
+            <div className="risk-modal-form">
+              <section className="form-panel form-panel-primary">
+                <div className="form-section-header">
+                  <div>
+                    <strong>Identificação</strong>
+                    <span>Projeto, classificação e descrição do evento de risco.</span>
+                  </div>
+                </div>
+                <div className="form-grid risk-form-grid">
+                  <label className="span-2">
+                    Projeto
+                    <select
+                      value={riskForm.project_id}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, project_id: event.target.value }))}
+                    >
+                      <option value="">Selecione</option>
+                      {projectsData.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.project_number} - {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Grupo
+                    <select
+                      value={riskForm.group_name}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, group_name: event.target.value }))}
+                    >
+                      <option value="">Selecione</option>
+                      {riskGroupOptions.map((group) => (
+                        <option key={group} value={group}>{group}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Origem
+                    <select
+                      value={riskForm.origin}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, origin: event.target.value }))}
+                    >
+                      <option value="">Selecione</option>
+                      {riskOriginOptions.map((origin) => (
+                        <option key={origin} value={origin}>{origin}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Impacto no negócio
+                    <select
+                      value={riskForm.business_impact}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, business_impact: event.target.value }))}
+                    >
+                      <option value="">Selecione</option>
+                      {riskBusinessImpactOptions.map((impact) => (
+                        <option key={impact} value={impact}>{impact}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="span-3">
+                    Descrição do risco
+                    <textarea
+                      className="compact-textarea"
+                      value={riskForm.description}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="Descreva o evento de risco"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="form-panel">
+                <div className="form-section-header">
+                  <div>
+                    <strong>Avaliação</strong>
+                    <span>Impacto, probabilidade e fase conforme a planilha.</span>
+                  </div>
+                </div>
+                <div className="risk-assessment-grid">
+                  <label>
+                    Impacto principal
+                    <select
+                      value={riskForm.main_impact}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, main_impact: event.target.value }))}
+                    >
+                      <option value="">Selecione</option>
+                      {riskMainImpactOptions.map((impact) => (
+                        <option key={impact} value={impact}>{impact}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Probabilidade
+                    <select
+                      value={riskForm.probability_score}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, probability_score: event.target.value }))}
+                    >
+                      {scoreOptions.map((score) => (
+                        <option key={score} value={score}>{score} - {riskScoreLabels[score]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Impacto
+                    <select
+                      value={riskForm.impact_score}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, impact_score: event.target.value }))}
+                    >
+                      {scoreOptions.map((score) => (
+                        <option key={score} value={score}>{score} - {riskImpactLabels[score]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Fase
+                    <select
+                      value={riskForm.phase}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, phase: event.target.value }))}
+                    >
+                      <option value="">Não definida</option>
+                      {projectPhaseOptions.map((phase) => (
+                        <option key={phase} value={phase}>{phase}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section className="form-panel">
+                <div className="form-section-header">
+                  <div>
+                    <strong>Plano e acompanhamento</strong>
+                    <span>Responsável, resposta ao risco e situação atual.</span>
+                  </div>
+                </div>
+                <div className="form-grid risk-form-grid">
+                  <label>
+                    Responsável
+                    <input
+                      value={riskForm.responsible_name}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, responsible_name: event.target.value }))}
+                      placeholder="Nome do responsável"
+                    />
+                  </label>
+                  <label>
+                    Tipo de resposta ao risco
+                    <select
+                      value={riskForm.response_type}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, response_type: event.target.value as RiskResponseType }))}
+                    >
+                      {Object.entries(riskResponseTypeLabels).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Status
+                    <select
+                      value={riskForm.status}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, status: event.target.value as RiskStatus }))}
+                    >
+                      {Object.entries(riskStatusLabels).map(([status, label]) => (
+                        <option key={status} value={status}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Data identificação
+                    <input
+                      type="date"
+                      value={riskForm.identified_on}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, identified_on: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Data encerramento risco
+                    <input
+                      type="date"
+                      value={riskForm.closed_on}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, closed_on: event.target.value }))}
+                    />
+                  </label>
+                  <label className="span-2">
+                    Ação / resposta planejada
+                    <textarea
+                      className="compact-textarea"
+                      value={riskForm.response_plan}
+                      onChange={(event) => onRiskFormChange((current) => ({ ...current, response_plan: event.target.value }))}
+                      placeholder="Estratégia de resposta ou mitigação inicial"
+                    />
+                  </label>
+                </div>
+              </section>
+
               {risksError ? <p className="auth-message modal-message">{risksError}</p> : null}
-              <button className="button full" disabled={isRisksLoading} onClick={onSaveRisk} type="button">
-                <Plus size={16} />
-                {isRisksLoading ? "Salvando..." : editingRiskId ? "Salvar alterações" : "Salvar risco"}
-              </button>
+              <div className="modal-footer-actions">
+                <button className="ghost-button compact-button" onClick={onCloseRiskModal} type="button">
+                  Cancelar
+                </button>
+                <button className="button compact-button" disabled={isRisksLoading} onClick={onSaveRisk} type="button">
+                  <Plus size={16} />
+                  {isRisksLoading ? "Salvando..." : editingRiskId ? "Salvar alterações" : "Salvar risco"}
+                </button>
+              </div>
             </div>
           </section>
         </div>
