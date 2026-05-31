@@ -23,6 +23,7 @@ type ProfessionalsModuleProps = {
   selectedProfessional: Professional | null;
   editingProfessionalId: string | null;
   professionalForm: ProfessionalForm;
+  isAdminProfile: boolean;
   onLoadProfessionals: () => void;
   onOpenProfessionalDetails: (professional: Professional) => void;
   onCloseProfessionalDetails: () => void;
@@ -46,6 +47,7 @@ export function ProfessionalsModule({
   selectedProfessional,
   editingProfessionalId,
   professionalForm,
+  isAdminProfile,
   onLoadProfessionals,
   onOpenProfessionalDetails,
   onCloseProfessionalDetails,
@@ -142,19 +144,23 @@ export function ProfessionalsModule({
                   >
                     <Eye size={14} />
                   </button>
-                  <button className="ghost-button compact-button" onClick={() => onOpenEditProfessionalModal(professional)} type="button">
-                    <Pencil size={14} />
-                    Editar
-                  </button>
-                  <button
-                    aria-label={`Remover ${professional.full_name}`}
-                    className="icon-button small-icon-button danger-icon-button"
-                    onClick={() => onRequestDeleteProfessional(professional)}
-                    title="Remover profissional"
-                    type="button"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {isAdminProfile ? (
+                    <>
+                      <button className="ghost-button compact-button" onClick={() => onOpenEditProfessionalModal(professional)} type="button">
+                        <Pencil size={14} />
+                        Editar
+                      </button>
+                      <button
+                        aria-label={`Remover ${professional.full_name}`}
+                        className="icon-button small-icon-button danger-icon-button"
+                        onClick={() => onRequestDeleteProfessional(professional)}
+                        title="Remover profissional"
+                        type="button"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  ) : null}
                 </span>
               </div>
             ))}
@@ -213,12 +219,14 @@ export function ProfessionalsModule({
                 </strong>
               </div>
             </div>
-            <div className="modal-actions">
-              <button className="ghost-button" onClick={() => onOpenEditProfessionalModal(selectedProfessional)} type="button">
-                <Pencil size={14} />
-                Editar
-              </button>
-            </div>
+            {isAdminProfile ? (
+              <div className="modal-actions">
+                <button className="ghost-button" onClick={() => onOpenEditProfessionalModal(selectedProfessional)} type="button">
+                  <Pencil size={14} />
+                  Editar
+                </button>
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}

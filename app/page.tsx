@@ -22,7 +22,7 @@ import {
   TriangleAlert,
   X
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   type AdminUser,
   type Client,
@@ -43,13 +43,16 @@ import {
   isValidEmail,
   isValidPhone,
   normalizeEmail,
+  getRiskSeverity,
+  getRiskSeverityClass,
   riskImpactLabels,
-  riskScoreLabels
+  riskScoreLabels,
+  riskStatusLabels
 } from "@/lib/domain";
 import { ClientsModule } from "@/components/clients-module";
 import { ProfessionalsModule } from "@/components/professionals-module";
 import { ProjectsModule } from "@/components/projects-module";
-import { RisksModule } from "@/components/risks-module";
+import { RiskDetailsModal, RisksModule } from "@/components/risks-module";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 type PendingDelete =
@@ -58,72 +61,6 @@ type PendingDelete =
   | { type: "project"; project: Project }
   | { type: "professional"; professional: Professional }
   | { type: "risk"; risk: Risk };
-
-const sampleProjects = [
-  {
-    number: "PRJ-2026-014",
-    name: "SAP S/4HANA Upgrade",
-    client: "Empresa XYZ",
-    gp: "João Silva",
-    phase: "3 - Realize",
-    risks: 12,
-    critical: 8,
-    status: "Ativo"
-  },
-  {
-    number: "PRJ-2026-019",
-    name: "Rollout fiscal",
-    client: "Grupo Atlante",
-    gp: "Marina Costa",
-    phase: "2 - Explore",
-    risks: 7,
-    critical: 2,
-    status: "Ativo"
-  },
-  {
-    number: "PRJ-2026-022",
-    name: "Integração BTP",
-    client: "Norte Energia",
-    gp: "Rafael Lima",
-    phase: "1 - Prepare",
-    risks: 5,
-    critical: 1,
-    status: "Planejado"
-  }
-];
-
-const risks = [
-  {
-    id: 1,
-    title: "Ausência de equipe técnica especializada para pontos críticos SAP",
-    group: "Técnico",
-    project: "PRJ-2026-014",
-    owner: "GP",
-    score: 16,
-    severity: "Alto",
-    status: "Em andamento"
-  },
-  {
-    id: 6,
-    title: "Quebra de integrações com sistemas legados, APIs externas ou EDI",
-    group: "Técnico",
-    project: "PRJ-2026-014",
-    owner: "Arquitetura",
-    score: 16,
-    severity: "Alto",
-    status: "Em andamento"
-  },
-  {
-    id: 11,
-    title: "Mudanças no escopo durante o projeto",
-    group: "Estratégico",
-    project: "PRJ-2026-014",
-    owner: "Comitê",
-    score: 16,
-    severity: "Alto",
-    status: "Em andamento"
-  }
-];
 
 const nav = [
   { label: "Dashboard", icon: LayoutDashboard, active: true },
@@ -152,10 +89,6 @@ const roleDescriptions: Record<Profile["role"], string> = {
   portfolio_manager: "Visão consolidada dos clientes e projetos sob sua gestão.",
   director: "Visão executiva dos indicadores e riscos do portfólio."
 };
-
-function SeverityBadge({ label }: { label: string }) {
-  return <span className={`badge badge-${label.toLowerCase()}`}>{label}</span>;
-}
 
 function StatusPill({ status }: { status: string }) {
   return <span className="status-pill">{status}</span>;
@@ -204,6 +137,8 @@ export default function Home() {
   const [selectedRisk, setSelectedRisk] = useState<Risk | null>(null);
   const [editingRiskId, setEditingRiskId] = useState<string | null>(null);
   const [riskForm, setRiskForm] = useState<RiskForm>({ ...emptyRiskForm });
+  const [dashboardProjectId, setDashboardProjectId] = useState("all");
+  const [dashboardMatrixFilter, setDashboardMatrixFilter] = useState<{ probability: number; impact: number } | null>(null);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [professionalsError, setProfessionalsError] = useState("");
   const [isProfessionalsLoading, setIsProfessionalsLoading] = useState(false);
@@ -371,6 +306,11 @@ export default function Home() {
   useEffect(() => {
     if (activeModule === "Administração") {
       void loadAdminUsers();
+    }
+    if (activeModule === "Dashboard" || activeModule === "Portfólio") {
+      void loadClients();
+      void loadProjects();
+      void loadRisks();
     }
     if (activeModule === "Clientes") {
       void loadClients();
@@ -1380,6 +1320,7 @@ export default function Home() {
   const isProjectsView = activeModule === "Projetos";
   const isProfessionalsView = activeModule === "Profissionais";
   const isRisksView = activeModule === "Riscos";
+  const isPortfolioView = activeModule === "Portfólio";
   const projectManagers = professionals.filter((professional) =>
     ["project_manager", "project_coordinator", "project_lead"].includes(professional.function)
     && professional.is_active
@@ -1388,9 +1329,72 @@ export default function Home() {
     ["portfolio_manager", "project_director"].includes(professional.function)
     && professional.is_active
   );
-  const visibleProjects = isClientProfile
-    ? sampleProjects.map((project) => ({ ...project, client: displayName }))
-    : sampleProjects;
+  const selectedDashboardProject = projectsData.find((project) => project.id === dashboardProjectId) || null;
+  const dashboardProjects = selectedDashboardProject ? [selectedDashboardProject] : projectsData;
+  const dashboardRisks = selectedDashboardProject
+    ? risksData.filter((risk) => risk.project_id === selectedDashboardProject.id)
+    : risksData;
+  const activeProjects = dashboardProjects.filter((project) => project.status === "active");
+  const openRisks = dashboardRisks.filter((risk) => ["open", "in_progress"].includes(risk.status));
+  const highRisks = dashboardRisks.filter((risk) => (risk.score || 0) >= 11);
+  const extremeRisks = dashboardRisks.filter((risk) => (risk.score || 0) > 16);
+  const risksWithoutResponse = dashboardRisks.filter((risk) => !risk.response_plan?.trim() && ["open", "in_progress"].includes(risk.status));
+  const filteredDashboardRisks = dashboardMatrixFilter
+    ? dashboardRisks.filter((risk) =>
+        risk.probability_score === dashboardMatrixFilter.probability
+        && risk.impact_score === dashboardMatrixFilter.impact
+      )
+    : dashboardRisks;
+  const priorityRisks = [...filteredDashboardRisks]
+    .sort((firstRisk, secondRisk) => (secondRisk.score || 0) - (firstRisk.score || 0))
+    .slice(0, 8);
+  const matrixFilterLabel = dashboardMatrixFilter
+    ? `${riskScoreLabels[dashboardMatrixFilter.probability]} x ${riskImpactLabels[dashboardMatrixFilter.impact]}`
+    : "";
+  const severitySummary = [
+    { label: "Extremos", count: extremeRisks.length },
+    { label: "Altos", count: dashboardRisks.filter((risk) => (risk.score || 0) >= 11 && (risk.score || 0) <= 16).length },
+    { label: "Moderados", count: dashboardRisks.filter((risk) => (risk.score || 0) >= 5 && (risk.score || 0) <= 10).length },
+    { label: "Baixos", count: dashboardRisks.filter((risk) => (risk.score || 0) > 0 && (risk.score || 0) < 5).length }
+  ];
+  const probabilityAxis = [1, 2, 3, 4, 5];
+  const impactAxis = [5, 4, 3, 2, 1];
+  const riskMatrixCells = impactAxis.flatMap((impact) =>
+    probabilityAxis.map((probability) => {
+      const cellRisks = dashboardRisks.filter((risk) =>
+        risk.probability_score === probability && risk.impact_score === impact
+      );
+      const score = probability * impact;
+      return {
+        key: `${probability}-${impact}`,
+        probability,
+        impact,
+        score,
+        count: cellRisks.length,
+        severityClass: getRiskSeverityClass(score)
+      };
+    })
+  );
+  const clientRiskSummary = clients
+    .map((client) => {
+      const clientProjects = dashboardProjects.filter((project) => project.client_id === client.id);
+      const clientProjectIds = new Set(clientProjects.map((project) => project.id));
+      const clientRisks = dashboardRisks.filter((risk) => clientProjectIds.has(risk.project_id));
+      return {
+        client,
+        projects: clientProjects.length,
+        total: clientRisks.length,
+        high: clientRisks.filter((risk) => (risk.score || 0) >= 11).length,
+        exposure: clientRisks.reduce((sum, risk) => sum + (risk.score || 0), 0)
+      };
+    })
+    .filter((summary) => summary.projects > 0 || summary.total > 0)
+    .sort((firstClient, secondClient) => secondClient.exposure - firstClient.exposure)
+    .slice(0, 5);
+  const dashboardTitle = selectedDashboardProject ? `Dashboard do Projeto` : isPortfolioView ? "Portfólio" : "Dashboard";
+  const dashboardContextLabel = selectedDashboardProject
+    ? `${selectedDashboardProject.project_number} · ${selectedDashboardProject.name}`
+    : "Visão geral";
   const initials = displayName
     .split(" ")
     .map((part) => part[0])
@@ -1538,7 +1542,10 @@ export default function Home() {
             <div className="section-header">
               <div>
                 <p className="eyebrow">Visão geral</p>
-                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : isProjectsView ? "Projetos" : isProfessionalsView ? "Profissionais" : isRisksView ? "Riscos" : "Dashboard"}</h2>
+                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : isProjectsView ? "Projetos" : isProfessionalsView ? "Profissionais" : isRisksView ? "Riscos" : dashboardTitle}</h2>
+                {(!isAdminUsersView && !isClientsView && !isProjectsView && !isProfessionalsView && !isRisksView) ? (
+                  <span className="dashboard-context">{dashboardContextLabel}</span>
+                ) : null}
               </div>
               {isAdminUsersView ? (
                 <button className="ghost-button" onClick={loadAdminUsers}>
@@ -1576,11 +1583,24 @@ export default function Home() {
                   <Plus size={16} />
                   Novo risco
                 </button>
-              ) : !isClientProfile ? (
-                <button className="button">
-                  <Plus size={16} />
-                  Solicitar vínculo
-                </button>
+              ) : !isClientsView && !isProjectsView && !isProfessionalsView && !isRisksView && !isAdminUsersView ? (
+                <label className="dashboard-selector">
+                  <span>Visualização</span>
+                  <select
+                    value={selectedDashboardProject ? selectedDashboardProject.id : "all"}
+                    onChange={(event) => {
+                      setDashboardProjectId(event.target.value);
+                      setDashboardMatrixFilter(null);
+                    }}
+                  >
+                    <option value="all">Visão geral</option>
+                    {projectsData.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.project_number} - {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               ) : null}
             </div>
 
@@ -1690,6 +1710,7 @@ export default function Home() {
                 selectedProfessional={selectedProfessional}
                 editingProfessionalId={editingProfessionalId}
                 professionalForm={professionalForm}
+                isAdminProfile={Boolean(isAdminProfile)}
                 onLoadProfessionals={loadProfessionals}
                 onOpenProfessionalDetails={openProfessionalDetails}
                 onCloseProfessionalDetails={() => setSelectedProfessional(null)}
@@ -1765,112 +1786,216 @@ export default function Home() {
                   <article className="metric">
                     <BriefcaseBusiness size={15} />
                     <span>Projetos ativos</span>
-                    <strong>18</strong>
+                    <strong>{activeProjects.length}</strong>
                   </article>
                   <article className="metric">
                     <TriangleAlert size={15} />
-                    <span>Riscos de alto impacto</span>
-                    <strong>31</strong>
+                    <span>Riscos altos/extremos</span>
+                    <strong>{highRisks.length}</strong>
                   </article>
                   <article className="metric">
                     <ListChecks size={15} />
-                    <span>Planos em atraso</span>
-                    <strong>9</strong>
+                    <span>Riscos em aberto</span>
+                    <strong>{openRisks.length}</strong>
                   </article>
                   <article className="metric">
                     <Building2 size={15} />
-                    <span>{isClientProfile ? "Projetos vinculados" : "Clientes monitorados"}</span>
-                    <strong>{isClientProfile ? visibleProjects.length : 7}</strong>
+                    <span>Sem resposta</span>
+                    <strong>{risksWithoutResponse.length}</strong>
                   </article>
                 </div>
 
+                <div className="dashboard-grid dashboard-grid-single">
+                  <article className="surface risk-matrix-surface">
+                    <div className="surface-header">
+                      <div>
+                        <h3>Matriz probabilidade x impacto</h3>
+                        <p>Mapa de concentração dos riscos por score e gravidade.</p>
+                      </div>
+                    </div>
+                    <div className="risk-matrix-wrap" aria-label="Matriz de probabilidade por impacto">
+                      <div className="risk-matrix">
+                        <div className="risk-matrix-corner" />
+                        {probabilityAxis.map((probability) => (
+                          <div className="risk-matrix-axis" key={`probability-${probability}`}>
+                            {riskScoreLabels[probability]}
+                          </div>
+                        ))}
+                        {impactAxis.map((impact) => (
+                          <Fragment key={`impact-row-${impact}`}>
+                            <div className="risk-matrix-axis risk-matrix-impact">
+                              {riskImpactLabels[impact]}
+                            </div>
+                            {riskMatrixCells
+                              .filter((cell) => cell.impact === impact)
+                              .map((cell) => (
+                                <button
+                                  aria-label={`${cell.count} risco${cell.count === 1 ? "" : "s"} com probabilidade ${riskScoreLabels[cell.probability]} e impacto ${riskImpactLabels[cell.impact]}`}
+                                  className={`risk-matrix-cell matrix-${cell.severityClass}${dashboardMatrixFilter?.probability === cell.probability && dashboardMatrixFilter?.impact === cell.impact ? " is-selected" : ""}`}
+                                  disabled={cell.count === 0}
+                                  key={cell.key}
+                                  onClick={() => setDashboardMatrixFilter((currentFilter) =>
+                                    currentFilter?.probability === cell.probability && currentFilter?.impact === cell.impact
+                                      ? null
+                                      : { probability: cell.probability, impact: cell.impact }
+                                  )}
+                                  title={`Score ${cell.score} · ${cell.count} risco${cell.count === 1 ? "" : "s"}`}
+                                  type="button"
+                                >
+                                  {cell.count > 0 ? <strong>{cell.count}</strong> : <span />}
+                                </button>
+                              ))}
+                          </Fragment>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="risk-matrix-footer">
+                      {severitySummary.map((item) => (
+                        <span key={item.label}>
+                          <i className={`matrix-dot matrix-${item.label.toLowerCase()}`} />
+                          {item.label}: {item.count}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
+                </div>
+
+                <article className="surface dashboard-priority-surface">
+                  <div className="surface-header dashboard-priority-header">
+                    <div>
+                      <h3>Riscos prioritários</h3>
+                      <p>
+                        {dashboardMatrixFilter
+                          ? `Filtrados pela matriz: ${matrixFilterLabel}.`
+                          : "Riscos mais críticos do contexto selecionado."}
+                      </p>
+                    </div>
+                    <div className="dashboard-priority-actions">
+                      {dashboardMatrixFilter ? (
+                        <button className="ghost-button" onClick={() => setDashboardMatrixFilter(null)} type="button">
+                          Limpar filtro
+                        </button>
+                      ) : null}
+                      <button className="ghost-button" onClick={() => setActiveModule("Riscos")} type="button">Abrir riscos</button>
+                    </div>
+                  </div>
+                  {priorityRisks.length === 0 ? (
+                    <div className="empty-state">
+                      <TriangleAlert size={20} />
+                      <strong>Nenhum risco encontrado</strong>
+                      <span>
+                        {dashboardMatrixFilter
+                          ? "Não há riscos cadastrados nesta célula da matriz."
+                          : "Os riscos mais críticos aparecerão aqui após o cadastro."}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="dashboard-risk-list">
+                      {priorityRisks.map((risk) => (
+                        <button className="dashboard-risk-card" key={risk.id} onClick={() => openRiskDetails(risk)} type="button">
+                          <span className="risk-id">{risk.sequence_number ? `#${risk.sequence_number}` : "-"}</span>
+                          <div className="dashboard-risk-copy">
+                            <strong>{risk.description}</strong>
+                            <small>
+                              {risk.projects?.project_number || "Sem projeto"} · {risk.group_name} · {risk.responsible_name || "Sem responsável"}
+                            </small>
+                          </div>
+                          <span className="score">{risk.score || "-"}</span>
+                          <span className="status-pill">{getRiskSeverity(risk.score)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </article>
+
                 {!isClientProfile ? (
-                  <div className="project-grid">
+                  <div className="dashboard-grid dashboard-grid-single">
                     <article className="surface">
                       <div className="surface-header">
                         <div>
-                          <h3>Vínculos</h3>
-                          <p>Clientes e projetos serão exibidos aqui.</p>
+                          <h3>Clientes por exposição</h3>
+                          <p>Consolidação por cliente e projetos associados.</p>
                         </div>
                       </div>
-                      <div className="empty-state">
-                        <Building2 size={20} />
-                        <strong>Nenhum vínculo cadastrado</strong>
-                        <span>Depois do CRUD administrativo, esta área mostrará os clientes e projetos liberados para o usuário.</span>
-                      </div>
+                      {clientRiskSummary.length === 0 ? (
+                        <div className="empty-state">
+                          <Building2 size={20} />
+                          <strong>Nenhum cliente com risco registrado</strong>
+                          <span>O consolidado será exibido quando houver projetos e riscos associados.</span>
+                        </div>
+                      ) : (
+                        <div className="table dashboard-clients-table">
+                          <div className="table-row table-head dashboard-client-row">
+                            <span>Cliente</span>
+                            <span>Projetos</span>
+                            <span>Riscos</span>
+                            <span>Altos</span>
+                            <span>Exposição</span>
+                          </div>
+                          {clientRiskSummary.map((summary) => (
+                            <div className="table-row dashboard-client-row" key={summary.client.id}>
+                              <span>
+                                <strong>{summary.client.name}</strong>
+                                <small>{summary.client.status === "active" ? "Ativo" : "Inativo"}</small>
+                              </span>
+                              <span>{summary.projects}</span>
+                              <span>{summary.total}</span>
+                              <span>{summary.high}</span>
+                              <span className="score">{summary.exposure}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </article>
                   </div>
                 ) : null}
 
-                <div className="project-grid">
+                {risksWithoutResponse.length > 0 ? (
                   <article className="surface">
                     <div className="surface-header">
                       <div>
-                        <h3>Projetos</h3>
-                        <p>
-                          {isClientProfile
-                            ? "Projetos liberados para acompanhamento pelo seu perfil."
-                            : "Visão consolidada por cliente, GP e criticidade."}
-                        </p>
+                        <h3>Riscos sem resposta planejada</h3>
+                        <p>Itens abertos que precisam de estratégia ou ação registrada.</p>
                       </div>
-                      <button className="ghost-button">Ver todos</button>
                     </div>
-                    <div className="table">
-                      <div className={isClientProfile ? "table-row table-head client-project-row" : "table-row table-head"}>
-                        <span>Número</span>
+                    <div className="table dashboard-actions-table">
+                      <div className="table-row table-head dashboard-action-row">
+                        <span>ID</span>
+                        <span>Risco</span>
                         <span>Projeto</span>
-                        {!isClientProfile ? <span>Cliente</span> : null}
-                        <span>GP</span>
-                        <span>Riscos</span>
                         <span>Status</span>
+                        <span>Score</span>
                       </div>
-                      {visibleProjects.map((project) => (
-                        <div className={isClientProfile ? "table-row client-project-row" : "table-row"} key={project.number}>
-                          <span className="mono">{project.number}</span>
+                      {risksWithoutResponse.slice(0, 5).map((risk) => (
+                        <div className="table-row dashboard-action-row" key={risk.id}>
+                          <span className="mono">{risk.sequence_number ? `#${risk.sequence_number}` : "-"}</span>
                           <span>
-                            <strong>{project.name}</strong>
-                            <small>{project.phase}</small>
+                            <button className="link-button" onClick={() => openRiskDetails(risk)} type="button">
+                              {risk.description}
+                            </button>
+                            <small>{risk.group_name}</small>
                           </span>
-                          {!isClientProfile ? <span>{project.client}</span> : null}
-                          <span>{project.gp}</span>
+                          <span>{risk.projects?.project_number || "Sem projeto"}</span>
                           <span>
-                            <strong>{project.critical}</strong> / {project.risks}
+                            <StatusPill status={riskStatusLabels[risk.status]} />
                           </span>
-                          <span>
-                            <StatusPill status={project.status} />
-                          </span>
+                          <span className="score">{risk.score || "-"}</span>
                         </div>
                       ))}
                     </div>
                   </article>
-                </div>
+                ) : null}
 
-                {profile?.role !== "admin" ? (
-                  <article className="surface">
-                    <div className="surface-header">
-                      <div>
-                        <h3>Riscos prioritários</h3>
-                        <p>Somente riscos do contexto selecionado.</p>
-                      </div>
-                      <button className="ghost-button">Abrir módulo</button>
-                    </div>
-                    <div className="risk-list">
-                      {risks.map((risk) => (
-                        <div className="risk-row" key={risk.id}>
-                          <span className="risk-id">#{risk.id}</span>
-                          <div>
-                            <strong>{risk.title}</strong>
-                            <small>
-                              {risk.project} · {risk.group} · Responsável: {risk.owner}
-                            </small>
-                          </div>
-                          <span className="score">{risk.score}</span>
-                          <SeverityBadge label={risk.severity} />
-                          <StatusPill status={risk.status} />
-                        </div>
-                      ))}
-                    </div>
-                  </article>
+                {selectedRisk ? (
+                  <RiskDetailsModal
+                    selectedRisk={selectedRisk}
+                    isAdminProfile={Boolean(isAdminProfile)}
+                    onCloseRiskDetails={() => setSelectedRisk(null)}
+                    onOpenEditRiskModal={(risk) => {
+                      setSelectedRisk(null);
+                      openEditRiskModal(risk);
+                    }}
+                  />
                 ) : null}
               </>
             )}
