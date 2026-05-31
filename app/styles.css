@@ -939,13 +939,34 @@ small {
   grid-template-columns: 70px minmax(260px, 1.5fr) 130px 120px 80px;
 }
 
+.reports-row {
+  min-width: 780px;
+  grid-template-columns: minmax(220px, 1.4fr) 160px minmax(220px, 1.2fr) 170px;
+}
+
+.report-detail-row {
+  min-width: 1040px;
+  grid-template-columns: 70px minmax(260px, 1.35fr) minmax(150px, 0.7fr) minmax(240px, 1fr) 120px;
+}
+
+.report-group-row {
+  min-width: 520px;
+  grid-template-columns: minmax(200px, 1fr) 80px 80px;
+}
+
+.report-responsibility-row {
+  min-width: 720px;
+  grid-template-columns: minmax(200px, 1fr) 90px 120px minmax(180px, 1fr);
+}
+
 .clients-table,
 .projects-table,
 .professionals-table,
 .risks-table,
 .dashboard-projects-table,
 .dashboard-clients-table,
-.dashboard-actions-table {
+.dashboard-actions-table,
+.reports-table {
   scrollbar-width: thin;
 }
 
@@ -1602,6 +1623,510 @@ small {
   background: var(--panel);
 }
 
+.report-builder {
+  display: grid;
+  gap: 16px;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.report-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.65fr);
+  gap: 12px;
+}
+
+.report-preview {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.report-cover-page {
+  display: grid;
+  gap: 14px;
+  min-height: 260px;
+  align-content: space-between;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, transparent), transparent 46%),
+    var(--panel);
+}
+
+.report-document-cover {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.report-document-cover h3 {
+  max-width: 620px;
+  margin-top: 10px;
+  font-size: 34px;
+  line-height: 1.05;
+}
+
+.report-document-cover > strong {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.report-document-cover span,
+.report-cover-meta span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.report-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+}
+
+.report-metadata-grid div {
+  display: grid;
+  gap: 4px;
+  min-height: 66px;
+  padding: 10px 12px;
+  border-right: 1px solid var(--line);
+}
+
+.report-metadata-grid div:last-child {
+  border-right: 0;
+}
+
+.report-metadata-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.report-metadata-grid strong {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.report-cover-meta {
+  display: grid;
+  min-width: 180px;
+  gap: 3px;
+  align-content: start;
+  text-align: right;
+}
+
+.report-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.report-document-kpis {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.report-document-kpis div {
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.report-document-kpis div:last-child {
+  border-right: 0;
+}
+
+.report-kpis div {
+  display: grid;
+  gap: 5px;
+  min-height: 72px;
+  align-content: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.report-kpis svg {
+  color: var(--primary-2);
+}
+
+.report-kpis span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.report-kpis strong {
+  font-size: 22px;
+}
+
+.report-kpis-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.report-section-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1.15fr) minmax(260px, 0.85fr);
+  gap: 12px;
+}
+
+.report-section-grid-detail {
+  grid-template-columns: minmax(260px, 0.8fr) minmax(360px, 1.2fr);
+}
+
+.report-panel {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.document-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.document-section-title span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.document-section-title h4 {
+  font-size: 15px;
+}
+
+.document-narrative-panel p {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.report-editable-field {
+  display: grid;
+  gap: 8px;
+}
+
+.report-editable-field > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.report-editable-field textarea {
+  width: 100%;
+  min-height: 124px;
+  resize: vertical;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: none;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.report-editable-field textarea:focus {
+  border-color: var(--primary-2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-2) 18%, transparent);
+}
+
+.report-editable-spacer {
+  margin-top: 12px;
+}
+
+.report-panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.report-panel-header h4 {
+  font-size: 14px;
+}
+
+.report-panel-header span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.report-panel p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.report-matrix {
+  display: grid;
+  grid-template-columns: 88px repeat(5, minmax(56px, 1fr));
+  gap: 3px;
+}
+
+.report-matrix-row {
+  display: contents;
+}
+
+.report-matrix-axis {
+  display: grid;
+  min-height: 28px;
+  place-items: center;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.report-matrix-impact {
+  justify-content: end;
+  padding-right: 6px;
+  text-align: right;
+}
+
+.report-matrix-cell {
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.report-risk-list {
+  display: grid;
+  gap: 7px;
+}
+
+.report-risk-row {
+  display: grid;
+  gap: 10px;
+  min-height: 48px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.report-risk-main {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 46px 140px 110px;
+  align-items: center;
+  gap: 10px;
+}
+
+.report-risk-row-with-plan {
+  padding: 11px;
+  background: var(--panel);
+}
+
+.report-risk-row-with-plan strong {
+  overflow: visible;
+  line-height: 1.3;
+  text-overflow: unset;
+  white-space: normal;
+}
+
+.report-risk-plan {
+  display: grid;
+  gap: 5px;
+  margin-left: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.report-risk-plan span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.report-risk-plan p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.report-risk-row strong,
+.report-risk-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-risk-row strong {
+  font-size: 13px;
+}
+
+.report-risk-row small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.report-detail-table {
+  margin-top: 0;
+}
+
+.report-group-table,
+.report-responsibility-table {
+  margin-top: 0;
+}
+
+.report-governance-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.report-governance-list span {
+  min-height: 32px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.report-action-list {
+  display: grid;
+  gap: 8px;
+}
+
+.report-action-card {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.report-action-card strong,
+.report-action-card small {
+  display: block;
+}
+
+.report-action-card strong {
+  font-size: 13px;
+}
+
+.report-action-card p {
+  margin: 5px 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.report-action-card small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.report-recommendation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.report-recommendation-list p {
+  position: relative;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.report-recommendation-list p::before {
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary-2);
+  content: "";
+}
+
+.report-approval-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-approval-grid div {
+  display: grid;
+  gap: 18px;
+  min-height: 92px;
+  align-content: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.report-approval-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.compact-empty {
+  padding: 14px;
+}
+
 .risk-row {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) 52px 82px 120px;
@@ -1730,8 +2255,49 @@ small {
   .risk-detail-grid,
   .risk-form-grid,
   .risk-assessment-grid,
-  .narrative-grid {
+  .narrative-grid,
+  .report-controls,
+  .report-kpis,
+  .report-metadata-grid,
+  .report-section-grid,
+  .report-risk-row,
+  .report-risk-main,
+  .report-approval-grid,
+  .report-action-card {
     grid-template-columns: 1fr;
+  }
+
+  .report-cover-page {
+    min-height: auto;
+    padding: 16px;
+  }
+
+  .report-document-cover,
+  .report-panel-header {
+    flex-direction: column;
+  }
+
+  .report-document-cover h3 {
+    font-size: 28px;
+  }
+
+  .report-risk-plan {
+    margin-left: 0;
+  }
+
+  .report-metadata-grid div,
+  .report-document-kpis div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .report-metadata-grid div:last-child,
+  .report-document-kpis div:last-child {
+    border-bottom: 0;
+  }
+
+  .report-cover-meta {
+    text-align: left;
   }
 
   .span-2 {

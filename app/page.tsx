@@ -32,6 +32,8 @@ import {
   type Profile,
   type Project,
   type ProjectForm,
+  type ReportRecord,
+  type ReportType,
   type Risk,
   type RiskForm,
   emptyClientContact,
@@ -45,6 +47,7 @@ import {
   normalizeEmail,
   getRiskSeverity,
   getRiskSeverityClass,
+  reportTypeLabels,
   riskImpactLabels,
   riskScoreLabels,
   riskStatusLabels
@@ -52,6 +55,7 @@ import {
 import { ClientsModule } from "@/components/clients-module";
 import { ProfessionalsModule } from "@/components/professionals-module";
 import { ProjectsModule } from "@/components/projects-module";
+import { ReportsModule } from "@/components/reports-module";
 import { RiskDetailsModal, RisksModule } from "@/components/risks-module";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
@@ -146,6 +150,11 @@ export default function Home() {
   const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null);
   const [editingProfessionalId, setEditingProfessionalId] = useState<string | null>(null);
   const [professionalForm, setProfessionalForm] = useState<ProfessionalForm>({ ...emptyProfessionalForm });
+  const [reportsData, setReportsData] = useState<ReportRecord[]>([]);
+  const [reportsError, setReportsError] = useState("");
+  const [isReportsLoading, setIsReportsLoading] = useState(false);
+  const [reportProjectId, setReportProjectId] = useState("all");
+  const [reportType, setReportType] = useState<ReportType>("executive");
 
   const visibleNav = useMemo(() => {
     if (!profile || profile.role === "admin") return nav;
@@ -290,6 +299,30 @@ export default function Home() {
     setIsRisksLoading(false);
   }, []);
 
+  const loadReports = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+
+    setIsReportsLoading(true);
+    setReportsError("");
+
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("reports")
+      .select("id, project_id, client_id, report_type, title, file_name, generated_by, generated_at, projects(id, project_number, name), clients(id, name)")
+      .order("generated_at", { ascending: false })
+      .returns<ReportRecord[]>();
+
+    if (error) {
+      setReportsError(error.message);
+      setReportsData([]);
+      setIsReportsLoading(false);
+      return;
+    }
+
+    setReportsData(data ?? []);
+    setIsReportsLoading(false);
+  }, []);
+
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("k-riskhub-theme");
     if (storedTheme === "dark") {
@@ -327,7 +360,12 @@ export default function Home() {
       void loadRisks();
       void loadProjects();
     }
-  }, [activeModule, loadAdminUsers, loadClients, loadProfessionals, loadProjects, loadRisks]);
+    if (activeModule === "Relatórios") {
+      void loadReports();
+      void loadProjects();
+      void loadRisks();
+    }
+  }, [activeModule, loadAdminUsers, loadClients, loadProfessionals, loadProjects, loadReports, loadRisks]);
 
   function toggleTheme() {
     setTheme((currentTheme) => {
@@ -1313,6 +1351,50 @@ export default function Home() {
     await loadRisks();
   }
 
+  async function registerReportPreview() {
+    setReportsError("");
+
+    if (!isSupabaseConfigured || !profile?.id) {
+      setReportsError("Supabase não configurado para salvar relatórios.");
+      return;
+    }
+
+    const selectedReportProject = projectsData.find((project) => project.id === reportProjectId) || null;
+    const titleContext = selectedReportProject
+      ? `${selectedReportProject.project_number} - ${selectedReportProject.name}`
+      : "Visão geral";
+    const title = `${reportTypeLabels[reportType]} - ${titleContext}`;
+
+    setIsReportsLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("reports")
+      .insert({
+        project_id: selectedReportProject?.id ?? null,
+        client_id: selectedReportProject?.client_id ?? null,
+        report_type: reportType,
+        title,
+        file_name: null,
+        generated_by: profile.id
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (error) {
+      setReportsError(error.message);
+      setIsReportsLoading(false);
+      return;
+    }
+
+    void writeAuditLog("reports", data?.id ?? null, "insert", {
+      project_id: selectedReportProject?.id ?? null,
+      report_type: reportType,
+      title
+    });
+
+    await loadReports();
+  }
+
   const displayName = profile?.full_name || profile?.email || "Usuário";
   const isClientProfile = profile?.role === "client";
   const isAdminUsersView = isAdminProfile && activeModule === "Administração";
@@ -1320,6 +1402,7 @@ export default function Home() {
   const isProjectsView = activeModule === "Projetos";
   const isProfessionalsView = activeModule === "Profissionais";
   const isRisksView = activeModule === "Riscos";
+  const isReportsView = activeModule === "Relatórios";
   const isPortfolioView = activeModule === "Portfólio";
   const projectManagers = professionals.filter((professional) =>
     ["project_manager", "project_coordinator", "project_lead"].includes(professional.function)
@@ -1542,8 +1625,8 @@ export default function Home() {
             <div className="section-header">
               <div>
                 <p className="eyebrow">Visão geral</p>
-                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : isProjectsView ? "Projetos" : isProfessionalsView ? "Profissionais" : isRisksView ? "Riscos" : dashboardTitle}</h2>
-                {(!isAdminUsersView && !isClientsView && !isProjectsView && !isProfessionalsView && !isRisksView) ? (
+                <h2>{isAdminUsersView ? "Administração" : isClientsView ? "Clientes" : isProjectsView ? "Projetos" : isProfessionalsView ? "Profissionais" : isRisksView ? "Riscos" : isReportsView ? "Relatórios" : dashboardTitle}</h2>
+                {(!isAdminUsersView && !isClientsView && !isProjectsView && !isProfessionalsView && !isRisksView && !isReportsView) ? (
                   <span className="dashboard-context">{dashboardContextLabel}</span>
                 ) : null}
               </div>
@@ -1583,7 +1666,7 @@ export default function Home() {
                   <Plus size={16} />
                   Novo risco
                 </button>
-              ) : !isClientsView && !isProjectsView && !isProfessionalsView && !isRisksView && !isAdminUsersView ? (
+              ) : !isClientsView && !isProjectsView && !isProfessionalsView && !isRisksView && !isReportsView && !isAdminUsersView ? (
                 <label className="dashboard-selector">
                   <span>Visualização</span>
                   <select
@@ -1779,6 +1862,21 @@ export default function Home() {
                 }}
                 onRiskFormChange={setRiskForm}
                 onSaveRisk={saveRisk}
+              />
+            ) : isReportsView ? (
+              <ReportsModule
+                projectsData={projectsData}
+                risksData={risksData}
+                reportsData={reportsData}
+                reportsError={reportsError}
+                isReportsLoading={isReportsLoading}
+                reportProjectId={reportProjectId}
+                reportType={reportType}
+                canRegisterReport={!isClientProfile && (Boolean(isAdminProfile) || reportProjectId !== "all")}
+                onReportProjectChange={setReportProjectId}
+                onReportTypeChange={setReportType}
+                onLoadReports={loadReports}
+                onRegisterReport={registerReportPreview}
               />
             ) : (
               <>

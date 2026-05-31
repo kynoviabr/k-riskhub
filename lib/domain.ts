@@ -152,6 +152,21 @@ export type RiskForm = {
   closed_on: string;
 };
 
+export type ReportType = "executive" | "risk_detail" | "risk_plan";
+
+export type ReportRecord = {
+  id: string;
+  project_id: string | null;
+  client_id: string | null;
+  report_type: ReportType;
+  title: string;
+  file_name: string | null;
+  generated_by: string | null;
+  generated_at: string;
+  projects?: Pick<Project, "id" | "project_number" | "name"> | null;
+  clients?: Pick<Client, "id" | "name"> | null;
+};
+
 export type ProjectForm = {
   client_id: string;
   project_number: string;
@@ -255,6 +270,12 @@ export const riskResponseTypeLabels: Record<RiskResponseType, string> = {
   mitigate: "Mitigar",
   accept: "Aceitar",
   escalate: "Escalar"
+};
+
+export const reportTypeLabels: Record<ReportType, string> = {
+  executive: "Executivo",
+  risk_detail: "Detalhado de riscos",
+  risk_plan: "Plano de gestão"
 };
 
 export const riskOriginOptions = ["Externo", "Interno"];
