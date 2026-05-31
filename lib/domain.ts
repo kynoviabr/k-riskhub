@@ -1,15 +1,49 @@
+export type ProfileStatus = "pending" | "active" | "blocked" | "invited";
+
 export type Profile = {
   id: string;
   full_name: string | null;
   email: string;
   avatar_url: string | null;
+  company_name: string | null;
+  phone: string | null;
+  job_title: string | null;
   role: "admin" | "gp" | "client" | "portfolio_manager" | "director";
   is_active: boolean;
+  status: ProfileStatus;
   last_seen_at: string | null;
 };
 
 export type AdminUser = Profile & {
   created_at: string | null;
+};
+
+export type AccessRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
+
+export type AccessRequest = {
+  id: string;
+  requester_id: string;
+  full_name: string;
+  email: string;
+  company: string;
+  phone: string | null;
+  related_context: string | null;
+  reason: string;
+  status: AccessRequestStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: Pick<Profile, "id" | "full_name" | "email" | "company_name" | "phone" | "job_title" | "role" | "status"> | null;
+};
+
+export type AccessRequestForm = {
+  full_name: string;
+  company: string;
+  phone: string;
+  related_context: string;
+  reason: string;
 };
 
 export type Client = {
@@ -333,18 +367,78 @@ export function getRiskSeverityClass(score: number | null | undefined) {
   return "baixo";
 }
 
-export function formatPhone(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 13);
-  const hasCountryCode = digits.startsWith("55") && digits.length > 11;
-  const nationalDigits = hasCountryCode ? digits.slice(2) : digits;
-  const countryPrefix = hasCountryCode ? "+55 " : "";
-  const areaCode = nationalDigits.slice(0, 2);
-  const firstPart = nationalDigits.length > 10 ? nationalDigits.slice(2, 7) : nationalDigits.slice(2, 6);
-  const secondPart = nationalDigits.length > 10 ? nationalDigits.slice(7, 11) : nationalDigits.slice(6, 10);
+const defaultPhoneCountryCode = "55";
+const knownPhoneCountryCodes = [
+  "1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45", "46", "47", "48", "49",
+  "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63", "64", "65", "66", "81", "82", "84", "86", "90",
+  "91", "92", "93", "94", "95", "98", "212", "213", "216", "218", "351", "352", "353", "354", "355", "356", "357", "358",
+  "359", "370", "371", "372", "373", "374", "375", "376", "377", "378", "380", "381", "382", "385", "386", "420", "421",
+  "423", "971", "972", "973", "974"
+].sort((a, b) => b.length - a.length);
 
-  if (nationalDigits.length <= 2) return `${countryPrefix}${areaCode}`;
-  if (nationalDigits.length <= 6) return `${countryPrefix}(${areaCode}) ${firstPart}`;
-  return `${countryPrefix}(${areaCode}) ${firstPart}-${secondPart}`;
+function splitPhoneCountryCode(value: string) {
+  const trimmedValue = value.trim();
+  const digits = trimmedValue.replace(/\D/g, "");
+
+  if (!digits) {
+    return { countryCode: defaultPhoneCountryCode, nationalDigits: "" };
+  }
+
+  if (!trimmedValue.startsWith("+") && !trimmedValue.startsWith("00")) {
+    const nationalDigits = digits.startsWith(defaultPhoneCountryCode) && digits.length > 11
+      ? digits.slice(defaultPhoneCountryCode.length)
+      : digits;
+
+    return {
+      countryCode: defaultPhoneCountryCode,
+      nationalDigits
+    };
+  }
+
+  const internationalDigits = trimmedValue.startsWith("00") ? digits.slice(2) : digits;
+  const separatedCountryCode = trimmedValue.match(/^(?:\+|00)(\d{1,3})(?=\D|$)/)?.[1];
+  const countryCode = separatedCountryCode
+    || knownPhoneCountryCodes.find((code) => internationalDigits.startsWith(code))
+    || internationalDigits.slice(0, Math.min(3, internationalDigits.length));
+
+  return {
+    countryCode,
+    nationalDigits: internationalDigits.slice(countryCode.length)
+  };
+}
+
+function formatBrazilianPhone(nationalDigits: string) {
+  const digits = nationalDigits.slice(0, 11);
+  const areaCode = digits.slice(0, 2);
+  const firstPart = digits.length > 10 ? digits.slice(2, 7) : digits.slice(2, 6);
+  const secondPart = digits.length > 10 ? digits.slice(7, 11) : digits.slice(6, 10);
+
+  if (!digits) return "+55";
+  if (digits.length <= 2) return `+55 (${areaCode}`;
+  if (digits.length <= 6) return `+55 (${areaCode}) ${firstPart}`;
+  return `+55 (${areaCode}) ${firstPart}-${secondPart}`;
+}
+
+function formatInternationalLocalNumber(nationalDigits: string) {
+  const digits = nationalDigits.slice(0, 14);
+  const groups: string[] = [];
+
+  for (let index = 0; index < digits.length; index += index === 0 ? 3 : 4) {
+    groups.push(digits.slice(index, index + (index === 0 ? 3 : 4)));
+  }
+
+  return groups.filter(Boolean).join(" ");
+}
+
+export function formatPhone(value: string) {
+  const { countryCode, nationalDigits } = splitPhoneCountryCode(value);
+
+  if (!countryCode || countryCode === defaultPhoneCountryCode) {
+    return formatBrazilianPhone(nationalDigits);
+  }
+
+  const formattedLocalNumber = formatInternationalLocalNumber(nationalDigits);
+  return formattedLocalNumber ? `+${countryCode} ${formattedLocalNumber}` : `+${countryCode}`;
 }
 
 export function isValidEmail(value: string) {
@@ -352,9 +446,15 @@ export function isValidEmail(value: string) {
 }
 
 export function isValidPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  const nationalDigits = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
-  return nationalDigits.length === 10 || nationalDigits.length === 11;
+  const trimmedValue = value.trim();
+  const { countryCode, nationalDigits } = splitPhoneCountryCode(trimmedValue);
+
+  if (countryCode === defaultPhoneCountryCode) {
+    return nationalDigits.length === 10 || nationalDigits.length === 11;
+  }
+
+  const totalDigits = `${countryCode}${nationalDigits}`.length;
+  return (trimmedValue.startsWith("+") || trimmedValue.startsWith("00")) && totalDigits >= 7 && totalDigits <= 15;
 }
 
 export function normalizeEmail(value: string) {

@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  type AccessRequest,
+  type AccessRequestForm,
   type AdminUser,
   type Client,
   type ClientContactForm,
@@ -94,8 +96,44 @@ const roleDescriptions: Record<Profile["role"], string> = {
   director: "Visão executiva dos indicadores e riscos do portfólio."
 };
 
+const profileStatusLabels: Record<Profile["status"], string> = {
+  pending: "Pendente",
+  active: "Ativo",
+  blocked: "Bloqueado",
+  invited: "Convidado"
+};
+
+const accessRequestStatusLabels: Record<AccessRequest["status"], string> = {
+  pending: "Pendente",
+  approved: "Aprovada",
+  rejected: "Rejeitada",
+  cancelled: "Cancelada"
+};
+
 function StatusPill({ status }: { status: string }) {
   return <span className="status-pill">{status}</span>;
+}
+
+function getFriendlyAuthMessage(message: string) {
+  const normalizedMessage = message.toLocaleLowerCase("pt-BR");
+
+  if (normalizedMessage.includes("invalid login credentials")) {
+    return "Não foi possível entrar com essas credenciais. Verifique o e-mail e a senha, ou use a opção de recuperação de senha.";
+  }
+
+  if (normalizedMessage.includes("email not confirmed")) {
+    return "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada antes de tentar entrar novamente.";
+  }
+
+  if (normalizedMessage.includes("user not found")) {
+    return "Não encontramos uma conta para este e-mail. Verifique o endereço informado ou solicite acesso pelo login corporativo.";
+  }
+
+  if (normalizedMessage.includes("too many requests")) {
+    return "Houve muitas tentativas em sequência. Aguarde alguns minutos antes de tentar novamente.";
+  }
+
+  return message || "Não foi possível concluir a autenticação. Tente novamente.";
 }
 
 export default function Home() {
@@ -112,6 +150,22 @@ export default function Home() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [adminUsersError, setAdminUsersError] = useState("");
   const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
+  const [adminUserRoleFilter, setAdminUserRoleFilter] = useState<"all" | Profile["role"]>("all");
+  const [adminUserCompanyFilter, setAdminUserCompanyFilter] = useState("");
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
+  const [accessRequestsError, setAccessRequestsError] = useState("");
+  const [isAccessRequestsLoading, setIsAccessRequestsLoading] = useState(false);
+  const [accessRequestRoles, setAccessRequestRoles] = useState<Record<string, Profile["role"]>>({});
+  const [myAccessRequest, setMyAccessRequest] = useState<AccessRequest | null>(null);
+  const [accessRequestMessage, setAccessRequestMessage] = useState("");
+  const [isSubmittingAccessRequest, setIsSubmittingAccessRequest] = useState(false);
+  const [accessRequestForm, setAccessRequestForm] = useState<AccessRequestForm>({
+    full_name: "",
+    company: "",
+    phone: "",
+    related_context: "",
+    reason: ""
+  });
   const [clients, setClients] = useState<Client[]>([]);
   const [clientStatusView, setClientStatusView] = useState<"active" | "inactive">("active");
   const [clientsError, setClientsError] = useState("");
@@ -157,6 +211,7 @@ export default function Home() {
   const [reportType, setReportType] = useState<ReportType>("executive");
 
   const visibleNav = useMemo(() => {
+    if (!profile?.is_active || profile.status !== "active") return [];
     if (!profile || profile.role === "admin") return nav;
     if (profile.role === "client") {
       return nav.filter((item) => !["Administração", "Clientes", "Portfólio"].includes(item.label));
@@ -164,7 +219,8 @@ export default function Home() {
     return nav.filter((item) => item.label !== "Administração");
   }, [profile]);
 
-  const isAdminProfile = profile?.role === "admin";
+  const isAuthorizedProfile = Boolean(profile?.is_active && profile.status === "active");
+  const isAdminProfile = profile?.role === "admin" && isAuthorizedProfile;
 
   const loadAdminUsers = useCallback(async () => {
     if (!isSupabaseConfigured || !isAdminProfile) return;
@@ -175,7 +231,7 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email, avatar_url, role, is_active, last_seen_at, created_at")
+      .select("id, full_name, email, avatar_url, company_name, phone, job_title, role, is_active, status, last_seen_at, created_at")
       .order("full_name", { ascending: true, nullsFirst: false })
       .returns<AdminUser[]>();
 
@@ -188,6 +244,35 @@ export default function Home() {
 
     setAdminUsers(data ?? []);
     setIsAdminUsersLoading(false);
+  }, [isAdminProfile]);
+
+  const loadAccessRequests = useCallback(async () => {
+    if (!isSupabaseConfigured || !isAdminProfile) return;
+
+    setIsAccessRequestsLoading(true);
+    setAccessRequestsError("");
+
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("access_requests")
+      .select("id, requester_id, full_name, email, company, phone, related_context, reason, status, reviewed_by, reviewed_at, review_note, created_at, updated_at, profiles!access_requests_requester_id_fkey(id, full_name, email, company_name, phone, job_title, role, status)")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .returns<AccessRequest[]>();
+
+    if (error) {
+      setAccessRequestsError(error.message);
+      setAccessRequests([]);
+      setIsAccessRequestsLoading(false);
+      return;
+    }
+
+    setAccessRequests(data ?? []);
+    setAccessRequestRoles((data ?? []).reduce<Record<string, Profile["role"]>>((roles, request) => {
+      roles[request.id] = request.profiles?.role || "client";
+      return roles;
+    }, {}));
+    setIsAccessRequestsLoading(false);
   }, [isAdminProfile]);
 
   const loadClients = useCallback(async () => {
@@ -337,8 +422,11 @@ export default function Home() {
   }, [isAdminProfile]);
 
   useEffect(() => {
+    if (!isAuthorizedProfile) return;
+
     if (activeModule === "Administração") {
       void loadAdminUsers();
+      void loadAccessRequests();
     }
     if (activeModule === "Dashboard" || activeModule === "Portfólio") {
       void loadClients();
@@ -365,7 +453,7 @@ export default function Home() {
       void loadProjects();
       void loadRisks();
     }
-  }, [activeModule, loadAdminUsers, loadClients, loadProfessionals, loadProjects, loadReports, loadRisks]);
+  }, [activeModule, isAuthorizedProfile, loadAccessRequests, loadAdminUsers, loadClients, loadProfessionals, loadProjects, loadReports, loadRisks]);
 
   function toggleTheme() {
     setTheme((currentTheme) => {
@@ -379,7 +467,7 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email, avatar_url, role, is_active, last_seen_at")
+      .select("id, full_name, email, avatar_url, company_name, phone, job_title, role, is_active, status, last_seen_at")
       .eq("id", userId)
       .single<Profile>();
 
@@ -393,9 +481,32 @@ export default function Home() {
 
     setProfile(data);
     setEmail(data.email);
+    setAccessRequestForm((currentForm) => ({
+      ...currentForm,
+      full_name: currentForm.full_name || data.full_name || "",
+      phone: currentForm.phone,
+      company: currentForm.company,
+      related_context: currentForm.related_context,
+      reason: currentForm.reason
+    }));
     setIsSignedIn(true);
     setIsProfileLoading(false);
-    void supabase.rpc("touch_current_profile_last_seen");
+
+    if (data.is_active && data.status === "active") {
+      void supabase.rpc("touch_current_profile_last_seen");
+      setMyAccessRequest(null);
+      return;
+    }
+
+    const { data: requestData } = await supabase
+      .from("access_requests")
+      .select("id, requester_id, full_name, email, company, phone, related_context, reason, status, reviewed_by, reviewed_at, review_note, created_at, updated_at")
+      .eq("requester_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<AccessRequest>();
+
+    setMyAccessRequest(requestData ?? null);
   }, []);
 
   const loadSession = useCallback(async () => {
@@ -469,12 +580,15 @@ export default function Home() {
       provider,
       options: {
         redirectTo,
+        queryParams: {
+          prompt: "select_account"
+        },
         scopes: provider === "azure" ? "email" : undefined
       }
     });
 
     if (error) {
-      setAuthMessage(error.message);
+      setAuthMessage(getFriendlyAuthMessage(error.message));
       setIsLoading(false);
     }
   }
@@ -497,7 +611,7 @@ export default function Home() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setAuthMessage(error.message);
+      setAuthMessage(getFriendlyAuthMessage(error.message));
       setIsLoading(false);
       return;
     }
@@ -529,7 +643,7 @@ export default function Home() {
       redirectTo: window.location.origin
     });
 
-    setAuthMessage(error ? error.message : "Enviamos o link de reset para o e-mail informado.");
+    setAuthMessage(error ? getFriendlyAuthMessage(error.message) : "Enviamos o link de reset para o e-mail informado.");
   }
 
   async function signOut() {
@@ -541,6 +655,112 @@ export default function Home() {
     setIsSignedIn(false);
     setProfile(null);
     setPassword("");
+    setMyAccessRequest(null);
+    setAccessRequestMessage("");
+  }
+
+  async function submitAccessRequest() {
+    setAccessRequestMessage("");
+
+    if (!isSupabaseConfigured || !profile?.id) {
+      setAccessRequestMessage("Não foi possível enviar a solicitação neste ambiente.");
+      return;
+    }
+
+    if (!accessRequestForm.full_name.trim() || !accessRequestForm.company.trim() || !accessRequestForm.reason.trim()) {
+      setAccessRequestMessage("Informe nome, empresa e motivo do acesso.");
+      return;
+    }
+
+    setIsSubmittingAccessRequest(true);
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("access_requests")
+      .insert({
+        requester_id: profile.id,
+        full_name: accessRequestForm.full_name.trim(),
+        email: profile.email,
+        company: accessRequestForm.company.trim(),
+        phone: accessRequestForm.phone.trim() || null,
+        related_context: accessRequestForm.related_context.trim() || null,
+        reason: accessRequestForm.reason.trim(),
+        status: "pending"
+      })
+      .select("id, requester_id, full_name, email, company, phone, related_context, reason, status, reviewed_by, reviewed_at, review_note, created_at, updated_at")
+      .single<AccessRequest>();
+
+    if (error) {
+      setAccessRequestMessage(error.message);
+      setIsSubmittingAccessRequest(false);
+      return;
+    }
+
+    setMyAccessRequest(data);
+    await supabase
+      .from("profiles")
+      .update({
+        full_name: profile.full_name || accessRequestForm.full_name.trim(),
+        company_name: profile.company_name || accessRequestForm.company.trim(),
+        phone: profile.phone || accessRequestForm.phone.trim() || null
+      })
+      .eq("id", profile.id);
+    setProfile((currentProfile) => currentProfile ? ({
+      ...currentProfile,
+      full_name: currentProfile.full_name || accessRequestForm.full_name.trim(),
+      company_name: currentProfile.company_name || accessRequestForm.company.trim(),
+      phone: currentProfile.phone || accessRequestForm.phone.trim() || null
+    }) : currentProfile);
+    setAccessRequestMessage("Solicitação enviada. Um administrador vai revisar seu acesso.");
+    setIsSubmittingAccessRequest(false);
+  }
+
+  async function reviewAccessRequest(request: AccessRequest, decision: "approved" | "rejected") {
+    if (!isSupabaseConfigured || !isAdminProfile || !profile?.id) return;
+
+    setIsAccessRequestsLoading(true);
+    setAccessRequestsError("");
+
+    const supabase = getSupabaseBrowserClient();
+    const { error: requestError } = await supabase
+      .from("access_requests")
+      .update({
+        status: decision,
+        reviewed_by: profile.id,
+        reviewed_at: new Date().toISOString()
+      })
+      .eq("id", request.id);
+
+    if (requestError) {
+      setAccessRequestsError(requestError.message);
+      setIsAccessRequestsLoading(false);
+      return;
+    }
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        company_name: request.profiles?.company_name || request.company,
+        phone: request.profiles?.phone || request.phone,
+        role: decision === "approved" ? accessRequestRoles[request.id] || "client" : request.profiles?.role || "client",
+        status: decision === "approved" ? "active" : "blocked",
+        is_active: decision === "approved"
+      })
+      .eq("id", request.requester_id);
+
+    if (profileError) {
+      setAccessRequestsError(profileError.message);
+      setIsAccessRequestsLoading(false);
+      return;
+    }
+
+    void writeAuditLog("access_requests", request.id, decision, {
+      requester_id: request.requester_id,
+      email: request.email,
+      role: decision === "approved" ? accessRequestRoles[request.id] || "client" : request.profiles?.role || "client"
+    });
+
+    await Promise.all([loadAccessRequests(), loadAdminUsers()]);
+    setIsAccessRequestsLoading(false);
   }
 
   async function writeAuditLog(entityTable: string, entityId: string | null, action: string, newData?: Record<string, unknown>) {
@@ -1404,6 +1624,20 @@ export default function Home() {
   const isRisksView = activeModule === "Riscos";
   const isReportsView = activeModule === "Relatórios";
   const isPortfolioView = activeModule === "Portfólio";
+  const accessRequestByRequesterId = useMemo(() => new Map(
+    accessRequests.map((request) => [request.requester_id, request])
+  ), [accessRequests]);
+  const filteredAdminUsers = useMemo(() => {
+    const companyFilter = adminUserCompanyFilter.trim().toLocaleLowerCase("pt-BR");
+
+    return adminUsers.filter((user) => {
+      const request = accessRequestByRequesterId.get(user.id);
+      const companyName = user.company_name || request?.company || "";
+      const matchesRole = adminUserRoleFilter === "all" || user.role === adminUserRoleFilter;
+      const matchesCompany = !companyFilter || companyName.toLocaleLowerCase("pt-BR").includes(companyFilter);
+      return matchesRole && matchesCompany;
+    });
+  }, [accessRequestByRequesterId, adminUserCompanyFilter, adminUserRoleFilter, adminUsers]);
   const projectManagers = professionals.filter((professional) =>
     ["project_manager", "project_coordinator", "project_lead"].includes(professional.function)
     && professional.is_active
@@ -1547,6 +1781,92 @@ export default function Home() {
               </p>
             ) : null}
           </div>
+        </div>
+      </section>
+      ) : !isAuthorizedProfile ? (
+      <section className="login-preview">
+        <div className="access-gate-panel">
+          <div className="access-gate-header">
+            <div className="brand-mark">K</div>
+            <div>
+              <p className="eyebrow">Acesso protegido</p>
+              <h1>{profile?.status === "blocked" || !profile?.is_active ? "Acesso bloqueado" : "Acesso em análise"}</h1>
+              <p className="muted">
+                {profile?.status === "blocked" || !profile?.is_active
+                  ? "Seu acesso ao K-RiskHub não está ativo. Entre em contato com o administrador da conta."
+                  : "Seu login foi criado com sucesso. Para proteger os dados dos clientes, o acesso depende de vínculo aprovado com uma conta, cliente ou projeto."}
+              </p>
+            </div>
+          </div>
+
+          <div className="access-status-card">
+            <div>
+              <span>Usuário</span>
+              <strong>{profile?.full_name || profile?.email}</strong>
+            </div>
+            <div>
+              <span>Status</span>
+              <strong>{profile ? profileStatusLabels[profile.status] : "Pendente"}</strong>
+            </div>
+            <div>
+              <span>E-mail</span>
+              <strong>{profile?.email}</strong>
+            </div>
+          </div>
+
+          {profile?.status === "blocked" || !profile?.is_active ? null : myAccessRequest?.status === "pending" ? (
+            <div className="access-request-sent">
+              <ShieldCheck size={20} />
+              <div>
+                <strong>Solicitação enviada</strong>
+                <span>
+                  Recebemos sua solicitação em {new Date(myAccessRequest.created_at).toLocaleString("pt-BR")}. Um administrador vai revisar seu vínculo.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="access-request-form">
+              <div>
+                <h3>Solicitar acesso</h3>
+                <p className="muted">Preencha os dados para que o administrador consiga validar seu vínculo.</p>
+              </div>
+              <div className="access-form-grid">
+                <label>
+                  Nome completo
+                  <input value={accessRequestForm.full_name} onChange={(event) => setAccessRequestForm((current) => ({ ...current, full_name: event.target.value }))} />
+                </label>
+                <label>
+                  Empresa
+                  <input value={accessRequestForm.company} onChange={(event) => setAccessRequestForm((current) => ({ ...current, company: event.target.value }))} />
+                </label>
+                <label>
+                  Telefone / WhatsApp
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="+55 11 99999-9999"
+                    value={accessRequestForm.phone}
+                    onChange={(event) => setAccessRequestForm((current) => ({ ...current, phone: formatPhone(event.target.value) }))}
+                  />
+                </label>
+                <label>
+                  Cliente ou projeto relacionado
+                  <input value={accessRequestForm.related_context} onChange={(event) => setAccessRequestForm((current) => ({ ...current, related_context: event.target.value }))} />
+                </label>
+                <label className="span-2">
+                  Motivo do acesso
+                  <textarea rows={4} value={accessRequestForm.reason} onChange={(event) => setAccessRequestForm((current) => ({ ...current, reason: event.target.value }))} />
+                </label>
+              </div>
+              <button className="button" disabled={isSubmittingAccessRequest} onClick={submitAccessRequest} type="button">
+                <ShieldCheck size={16} />
+                {isSubmittingAccessRequest ? "Enviando..." : "Enviar solicitação"}
+              </button>
+            </div>
+          )}
+
+          {accessRequestMessage ? <p className="auth-message">{accessRequestMessage}</p> : null}
+          <button className="ghost-button" onClick={signOut} type="button">Sair</button>
         </div>
       </section>
       ) : (
@@ -1708,16 +2028,126 @@ export default function Home() {
                   <article className="metric">
                     <ListChecks size={15} />
                     <span>Ativos</span>
-                    <strong>{adminUsers.filter((user) => user.is_active).length}</strong>
+                    <strong>{adminUsers.filter((user) => user.is_active && user.status === "active").length}</strong>
+                  </article>
+                  <article className="metric">
+                    <ShieldCheck size={15} />
+                    <span>Solicitações pendentes</span>
+                    <strong>{accessRequests.filter((request) => request.status === "pending").length}</strong>
                   </article>
                 </div>
 
                 <article className="surface">
                   <div className="surface-header">
                     <div>
-                      <h3>Usuários</h3>
-                      <p>Perfis cadastrados no Supabase.</p>
+                      <h3>Solicitações de acesso</h3>
+                      <p>Pedidos pendentes de aprovação. Solicitações aprovadas ou rejeitadas ficam preservadas no histórico do banco.</p>
                     </div>
+                    <button className="ghost-button" onClick={loadAccessRequests} type="button">Atualizar</button>
+                  </div>
+
+                  {accessRequestsError ? <p className="auth-message">{accessRequestsError}</p> : null}
+                  {isAccessRequestsLoading ? (
+                    <div className="empty-state">
+                      <ShieldCheck size={20} />
+                      <strong>Carregando solicitações</strong>
+                      <span>Consultando pedidos de acesso.</span>
+                    </div>
+                  ) : accessRequests.length === 0 ? (
+                    <div className="empty-state">
+                      <ShieldCheck size={20} />
+                      <strong>Nenhuma solicitação pendente</strong>
+                      <span>Novos usuários sem vínculo aparecerão aqui quando solicitarem acesso.</span>
+                    </div>
+                  ) : (
+                    <div className="table">
+                      <div className="table-row table-head access-requests-row">
+                        <span>Usuário</span>
+                        <span>Empresa</span>
+                        <span>Motivo</span>
+                        <span>Perfil</span>
+                        <span>Status</span>
+                        <span>Ações</span>
+                      </div>
+                      {accessRequests.map((request) => (
+                        <div className="table-row access-requests-row" key={request.id}>
+                          <span>
+                            <strong>{request.full_name}</strong>
+                            <small>{request.email}</small>
+                          </span>
+                          <span>
+                            <strong>{request.company}</strong>
+                            <small>{request.related_context || "Sem contexto informado"}</small>
+                          </span>
+                          <span>{request.reason}</span>
+                          <span>
+                            <select
+                              disabled={request.status !== "pending"}
+                              value={accessRequestRoles[request.id] || "client"}
+                              onChange={(event) => setAccessRequestRoles((current) => ({
+                                ...current,
+                                [request.id]: event.target.value as Profile["role"]
+                              }))}
+                            >
+                              {Object.entries(roleLabels).map(([role, label]) => (
+                                <option key={role} value={role}>{label}</option>
+                              ))}
+                            </select>
+                          </span>
+                          <span>
+                            <StatusPill status={accessRequestStatusLabels[request.status]} />
+                          </span>
+                          <span className="row-actions">
+                            <button
+                              className="ghost-button compact-button"
+                              disabled={request.status !== "pending"}
+                              onClick={() => reviewAccessRequest(request, "approved")}
+                              type="button"
+                            >
+                              Aprovar
+                            </button>
+                            <button
+                              className="ghost-button compact-button"
+                              disabled={request.status !== "pending"}
+                              onClick={() => reviewAccessRequest(request, "rejected")}
+                              type="button"
+                            >
+                              Rejeitar
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+
+                <article className="surface">
+                  <div className="surface-header">
+                    <div>
+                      <h3>Usuários</h3>
+                      <p>Perfis cadastrados no Supabase. Usuários pendentes aparecem aqui para auditoria; aprovação é feita na seção de solicitações.</p>
+                    </div>
+                  </div>
+
+                  <div className="admin-users-filters">
+                    <label>
+                      Perfil
+                      <select value={adminUserRoleFilter} onChange={(event) => setAdminUserRoleFilter(event.target.value as "all" | Profile["role"])}>
+                        <option value="all">Todos os perfis</option>
+                        {Object.entries(roleLabels).map(([role, label]) => (
+                          <option key={role} value={role}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Empresa
+                      <input
+                        placeholder="Filtrar por empresa informada"
+                        value={adminUserCompanyFilter}
+                        onChange={(event) => setAdminUserCompanyFilter(event.target.value)}
+                      />
+                    </label>
+                    <span>{filteredAdminUsers.length} de {adminUsers.length} usuário{adminUsers.length === 1 ? "" : "s"}</span>
                   </div>
 
                   {adminUsersError ? <p className="auth-message">{adminUsersError}</p> : null}
@@ -1732,20 +2162,34 @@ export default function Home() {
                       <div className="table-row table-head admin-users-row">
                         <span>Nome</span>
                         <span>E-mail</span>
+                        <span>Empresa</span>
                         <span>Perfil</span>
                         <span>Status</span>
                         <span>Último acesso</span>
                       </div>
-                      {adminUsers.map((user) => (
+                      {filteredAdminUsers.length === 0 ? (
+                        <div className="table-row admin-users-row">
+                          <span>
+                            <strong>Nenhum usuário encontrado</strong>
+                            <small>Ajuste os filtros para ampliar a consulta.</small>
+                          </span>
+                          <span>-</span>
+                          <span>-</span>
+                          <span>-</span>
+                          <span>-</span>
+                          <span>-</span>
+                        </div>
+                      ) : filteredAdminUsers.map((user) => (
                         <div className="table-row admin-users-row" key={user.id}>
                           <span>
                             <strong>{user.full_name || "Sem nome"}</strong>
                             <small>{user.created_at ? new Date(user.created_at).toLocaleDateString("pt-BR") : "Sem data"}</small>
                           </span>
                           <span>{user.email}</span>
+                          <span>{user.company_name || accessRequestByRequesterId.get(user.id)?.company || "Não informada"}</span>
                           <span>{roleLabels[user.role]}</span>
                           <span>
-                            <StatusPill status={user.is_active ? "Ativo" : "Inativo"} />
+                            <StatusPill status={!user.is_active ? "Inativo" : profileStatusLabels[user.status]} />
                           </span>
                           <span>{user.last_seen_at ? new Date(user.last_seen_at).toLocaleString("pt-BR") : "Primeiro acesso"}</span>
                         </div>
@@ -2135,7 +2579,7 @@ export default function Home() {
                 </div>
                 <div className="profile-detail-card">
                   <span>Status</span>
-                  <strong>{profile?.is_active ? "Ativo" : "Inativo"}</strong>
+                  <strong>{profile ? (!profile.is_active ? "Inativo" : profileStatusLabels[profile.status]) : "Não definido"}</strong>
                 </div>
                 <div className="profile-detail-card">
                   <span>Último acesso</span>

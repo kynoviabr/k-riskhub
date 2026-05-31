@@ -136,6 +136,101 @@ a {
   backdrop-filter: blur(18px);
 }
 
+.access-gate-panel {
+  display: grid;
+  width: min(820px, 100%);
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.access-gate-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.access-status-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.access-status-card div {
+  display: grid;
+  gap: 4px;
+  min-height: 70px;
+  align-content: center;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+}
+
+.access-status-card div:last-child {
+  border-right: 0;
+}
+
+.access-status-card span,
+.access-request-form label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.access-status-card strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.access-request-sent {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--success) 9%, var(--panel));
+}
+
+.access-request-sent span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.access-request-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.access-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.access-request-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.access-request-form input,
+.access-request-form textarea {
+  width: 100%;
+}
+
 .loading-panel {
   justify-items: center;
   text-align: center;
@@ -901,7 +996,72 @@ small {
 }
 
 .admin-users-row {
-  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.2fr) 150px 100px 160px;
+  min-width: 1060px;
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.2fr) minmax(160px, 0.9fr) 150px 100px 160px;
+}
+
+.admin-users-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.35fr) minmax(220px, 0.55fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.admin-users-filters label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.admin-users-filters select,
+.admin-users-filters input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  text-transform: none;
+}
+
+.admin-users-filters > span {
+  min-height: 38px;
+  align-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  text-align: right;
+}
+
+.access-requests-row {
+  min-width: 1180px;
+  grid-template-columns: minmax(190px, 1fr) minmax(180px, 0.95fr) minmax(260px, 1.35fr) 150px 110px 190px;
+}
+
+.access-requests-row select {
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
 }
 
 .clients-row {
@@ -2306,6 +2466,9 @@ small {
   .risk-form-grid,
   .risk-assessment-grid,
   .narrative-grid,
+  .access-status-card,
+  .access-form-grid,
+  .admin-users-filters,
   .report-controls,
   .report-kpis,
   .report-metadata-grid,
@@ -2333,6 +2496,24 @@ small {
 
   .report-risk-plan {
     margin-left: 0;
+  }
+
+  .access-gate-header,
+  .row-actions {
+    flex-direction: column;
+  }
+
+  .access-status-card div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .access-status-card div:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-users-filters > span {
+    text-align: left;
   }
 
   .report-metadata-grid div,
