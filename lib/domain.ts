@@ -131,6 +131,7 @@ export type RiskForm = {
   phase: string;
   description: string;
   origin: string;
+  identified_on: string;
   main_impact: string;
   probability_score: string;
   impact_score: string;
@@ -138,6 +139,7 @@ export type RiskForm = {
   response_plan: string;
   responsible_name: string;
   status: RiskStatus;
+  closed_on: string;
 };
 
 export type ProjectForm = {
@@ -186,25 +188,25 @@ export const emptyRiskForm: RiskForm = {
   phase: "",
   description: "",
   origin: "",
+  identified_on: new Date().toISOString().slice(0, 10),
   main_impact: "",
   probability_score: "3",
   impact_score: "3",
   response_type: "mitigate",
   response_plan: "",
   responsible_name: "",
-  status: "open"
+  status: "in_progress",
+  closed_on: ""
 };
 
 export const projectPhaseOptions = [
-  "Preparação",
-  "Descoberta",
-  "Planejamento",
-  "Explore",
-  "Realize",
-  "Deploy",
-  "Go-live",
-  "Suporte",
-  "Encerramento"
+  "1 - Prepare",
+  "2 - Explore",
+  "3 - Realize",
+  "3.1 - Testes Integrados",
+  "4 - Deploy",
+  "5 - Run",
+  "Todas"
 ];
 
 export const professionalFunctionLabels: Record<ProfessionalFunction, string> = {
@@ -227,7 +229,7 @@ export const riskStatusLabels: Record<RiskStatus, string> = {
   open: "Aberto",
   in_progress: "Em andamento",
   mitigated: "Mitigado",
-  closed: "Fechado",
+  closed: "Concluído",
   accepted: "Aceito"
 };
 
@@ -239,33 +241,42 @@ export const riskResponseTypeLabels: Record<RiskResponseType, string> = {
   escalate: "Escalate"
 };
 
-export const riskGroupOptions = [
-  "Técnico",
-  "Cronograma",
-  "Financeiro",
-  "Escopo",
-  "Recursos",
-  "Stakeholders",
-  "Qualidade",
-  "Fornecedores",
-  "Governança",
-  "Segurança"
-];
+export const riskOriginOptions = ["Externo", "Interno"];
+
+export const riskGroupOptions = ["Estratégico", "Ambiental", "Operacional", "Técnico"];
+
+export const riskMainImpactOptions = ["Custo", "Escopo", "Tempo", "Qualidade", "Resultado"];
 
 export const riskScoreLabels: Record<number, string> = {
-  1: "Muito baixo",
+  1: "Muito Pequena",
+  2: "Pequena",
+  3: "Média",
+  4: "Grande",
+  5: "Muito Grande"
+};
+
+export const riskImpactLabels: Record<number, string> = {
+  1: "Insignificante",
   2: "Baixo",
-  3: "Médio",
+  3: "Moderado",
   4: "Alto",
-  5: "Muito alto"
+  5: "Catastrófico"
 };
 
 export function getRiskSeverity(score: number | null | undefined) {
   if (!score) return "Não avaliado";
-  if (score >= 16) return "Crítico";
-  if (score >= 10) return "Alto";
-  if (score >= 5) return "Médio";
-  return "Baixo";
+  if (score > 22) return "Risco Extremamente Alto";
+  if (score >= 11) return "Risco Alto";
+  if (score >= 6) return "Risco Moderado";
+  return "Risco Baixo";
+}
+
+export function getRiskSeverityClass(score: number | null | undefined) {
+  if (!score) return "nao-avaliado";
+  if (score > 22) return "extremo";
+  if (score >= 11) return "alto";
+  if (score >= 6) return "moderado";
+  return "baixo";
 }
 
 export function formatPhone(value: string) {

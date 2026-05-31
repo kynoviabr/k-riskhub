@@ -43,6 +43,7 @@ import {
   isValidEmail,
   isValidPhone,
   normalizeEmail,
+  riskImpactLabels,
   riskScoreLabels
 } from "@/lib/domain";
 import { ClientsModule } from "@/components/clients-module";
@@ -1228,13 +1229,15 @@ export default function Home() {
       phase: risk.phase || "",
       description: risk.description,
       origin: risk.origin || "",
+      identified_on: risk.identified_on || new Date().toISOString().slice(0, 10),
       main_impact: risk.main_impact || "",
       probability_score: String(risk.probability_score || 3),
       impact_score: String(risk.impact_score || 3),
       response_type: risk.response_type || "mitigate",
       response_plan: risk.response_plan || "",
       responsible_name: risk.responsible_name || "",
-      status: risk.status
+      status: risk.status,
+      closed_on: risk.closed_on || ""
     });
     setEditingRiskId(risk.id);
     setRisksError("");
@@ -1281,16 +1284,17 @@ export default function Home() {
       phase: riskForm.phase || null,
       description: riskForm.description.trim(),
       origin: riskForm.origin.trim() || null,
+      identified_on: riskForm.identified_on || new Date().toISOString().slice(0, 10),
       main_impact: riskForm.main_impact.trim() || null,
       probability_score: probabilityScore,
       probability_label: riskScoreLabels[probabilityScore],
       impact_score: impactScore,
-      impact_label: riskScoreLabels[impactScore],
+      impact_label: riskImpactLabels[impactScore],
       response_type: riskForm.response_type,
       response_plan: riskForm.response_plan.trim() || null,
       responsible_name: riskForm.responsible_name.trim() || null,
       status: riskForm.status,
-      closed_on: riskForm.status === "closed" ? new Date().toISOString().slice(0, 10) : null,
+      closed_on: riskForm.closed_on || (riskForm.status === "closed" ? new Date().toISOString().slice(0, 10) : null),
       created_by: profile?.id || null
     };
 

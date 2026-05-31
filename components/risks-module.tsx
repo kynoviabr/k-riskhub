@@ -14,8 +14,12 @@ import {
 import type { Project, Risk, RiskForm, RiskResponseType, RiskStatus } from "@/lib/domain";
 import {
   getRiskSeverity,
+  getRiskSeverityClass,
   projectPhaseOptions,
   riskGroupOptions,
+  riskImpactLabels,
+  riskMainImpactOptions,
+  riskOriginOptions,
   riskResponseTypeLabels,
   riskScoreLabels,
   riskStatusLabels
@@ -47,7 +51,7 @@ function StatusPill({ status }: { status: string }) {
 
 function SeverityBadge({ score }: { score: number | null | undefined }) {
   const severity = getRiskSeverity(score);
-  return <span className={`badge badge-${severity.toLocaleLowerCase("pt-BR")}`}>{severity}</span>;
+  return <span className={`badge badge-${getRiskSeverityClass(score)}`}>{severity}</span>;
 }
 
 const scoreOptions = [1, 2, 3, 4, 5];
@@ -71,7 +75,7 @@ export function RisksModule({
   onRiskFormChange,
   onSaveRisk
 }: RisksModuleProps) {
-  const highImpactRisks = risksData.filter((risk) => (risk.score || 0) >= 10);
+  const highImpactRisks = risksData.filter((risk) => (risk.score || 0) >= 11);
   const openRisks = risksData.filter((risk) => ["open", "in_progress"].includes(risk.status));
 
   return (
@@ -131,7 +135,7 @@ export function RisksModule({
               <span>Projeto</span>
               <span>Grupo</span>
               <span>Score</span>
-              <span>Severidade</span>
+              <span>Gravidade</span>
               <span>Status</span>
               <span>Ações</span>
             </div>
@@ -229,6 +233,17 @@ export function RisksModule({
                 <strong>{selectedRisk.group_name}</strong>
               </div>
               <div>
+                <span>Data identificação</span>
+                <strong>{selectedRisk.identified_on ? new Date(selectedRisk.identified_on).toLocaleDateString("pt-BR") : "Sem data"}</strong>
+              </div>
+              <div>
+                <span>Data encerramento</span>
+                <strong>{selectedRisk.closed_on ? new Date(selectedRisk.closed_on).toLocaleDateString("pt-BR") : "Em aberto"}</strong>
+              </div>
+            </div>
+
+            <div className="detail-summary">
+              <div>
                 <span>Probabilidade</span>
                 <strong>{selectedRisk.probability_score || "-"} - {selectedRisk.probability_label || "Não informada"}</strong>
               </div>
@@ -243,7 +258,7 @@ export function RisksModule({
               <p>{selectedRisk.description}</p>
             </div>
             <div className="detail-block">
-              <span>Origem / causa</span>
+              <span>Origem</span>
               <p>{selectedRisk.origin || "Não informada."}</p>
             </div>
             <div className="detail-block">
@@ -327,21 +342,47 @@ export function RisksModule({
                 />
               </label>
               <label>
-                Origem / causa
-                <textarea
+                Origem
+                <select
                   value={riskForm.origin}
                   onChange={(event) => onRiskFormChange((current) => ({ ...current, origin: event.target.value }))}
-                  placeholder="Causa provável ou contexto de origem"
-                />
+                >
+                  <option value="">Selecione</option>
+                  {riskOriginOptions.map((origin) => (
+                    <option key={origin} value={origin}>{origin}</option>
+                  ))}
+                </select>
               </label>
               <label>
                 Impacto principal
-                <textarea
+                <select
                   value={riskForm.main_impact}
                   onChange={(event) => onRiskFormChange((current) => ({ ...current, main_impact: event.target.value }))}
-                  placeholder="Consequência esperada se o risco ocorrer"
-                />
+                >
+                  <option value="">Selecione</option>
+                  {riskMainImpactOptions.map((impact) => (
+                    <option key={impact} value={impact}>{impact}</option>
+                  ))}
+                </select>
               </label>
+              <div className="form-grid two-columns">
+                <label>
+                  Data identificação
+                  <input
+                    type="date"
+                    value={riskForm.identified_on}
+                    onChange={(event) => onRiskFormChange((current) => ({ ...current, identified_on: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Data encerramento risco
+                  <input
+                    type="date"
+                    value={riskForm.closed_on}
+                    onChange={(event) => onRiskFormChange((current) => ({ ...current, closed_on: event.target.value }))}
+                  />
+                </label>
+              </div>
               <div className="form-grid two-columns">
                 <label>
                   Probabilidade
@@ -361,7 +402,7 @@ export function RisksModule({
                     onChange={(event) => onRiskFormChange((current) => ({ ...current, impact_score: event.target.value }))}
                   >
                     {scoreOptions.map((score) => (
-                      <option key={score} value={score}>{score} - {riskScoreLabels[score]}</option>
+                      <option key={score} value={score}>{score} - {riskImpactLabels[score]}</option>
                     ))}
                   </select>
                 </label>

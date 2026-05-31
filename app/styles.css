@@ -1125,6 +1125,11 @@ small {
   color: var(--danger);
 }
 
+.badge-extremo {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
 .badge-moderado {
   background: #fff2d9;
   color: var(--warning);
@@ -1133,6 +1138,11 @@ small {
 .badge-baixo {
   background: #e8f4ee;
   color: var(--success);
+}
+
+.badge-nao-avaliado {
+  background: var(--panel-2);
+  color: var(--muted);
 }
 
 .status-pill {
