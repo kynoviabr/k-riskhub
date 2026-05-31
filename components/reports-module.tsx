@@ -5,9 +5,11 @@ import {
   BarChart3,
   BriefcaseBusiness,
   CalendarDays,
+  Download,
   FileText,
   ListChecks,
   Plus,
+  Save,
   TriangleAlert
 } from "lucide-react";
 import type { Project, ReportRecord, ReportType, Risk } from "@/lib/domain";
@@ -53,6 +55,128 @@ type MatrixCell = {
   count: number;
   severityClass: string;
 };
+
+type SavedReport = {
+  fileName: string;
+  html: string;
+  savedAt: string;
+  text: string;
+};
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function sanitizeFileName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function downloadBlob(fileName: string, mimeType: string, content: BlobPart) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function wrapPdfText(text: string, maxLength = 92) {
+  const lines: string[] = [];
+  text.split("\n").forEach((rawLine) => {
+    const words = rawLine.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push("");
+      return;
+    }
+    let line = "";
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (candidate.length > maxLength) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    });
+    if (line) lines.push(line);
+  });
+  return lines;
+}
+
+function escapePdfText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+}
+
+function createSimplePdf(text: string) {
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const marginX = 42;
+  const startY = 792;
+  const lineHeight = 14;
+  const linesPerPage = Math.floor((startY - 50) / lineHeight);
+  const lines = wrapPdfText(text);
+  const pages: string[] = [];
+
+  for (let index = 0; index < lines.length; index += linesPerPage) {
+    const pageLines = lines.slice(index, index + linesPerPage);
+    const content = [
+      "BT",
+      "/F1 10 Tf",
+      `${marginX} ${startY} Td`,
+      ...pageLines.flatMap((line, lineIndex) => [
+        lineIndex === 0 ? "" : `0 -${lineHeight} Td`,
+        `(${escapePdfText(line)}) Tj`
+      ]).filter(Boolean),
+      "ET"
+    ].join("\n");
+    pages.push(content);
+  }
+
+  const objects: string[] = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`
+  ];
+
+  pages.forEach((content, index) => {
+    const pageObjectNumber = 3 + index * 2;
+    const contentObjectNumber = pageObjectNumber + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
 
 function RiskMatrixPanel({ extremeRisksCount, matrixCells }: { extremeRisksCount: number; matrixCells: MatrixCell[] }) {
   return (
@@ -167,6 +291,41 @@ function ReportEditableField({
   );
 }
 
+function ReportApprovalField({
+  name,
+  onNameChange,
+  onRoleChange,
+  role
+}: {
+  name: string;
+  onNameChange: (value: string) => void;
+  onRoleChange: (value: string) => void;
+  role: string;
+}) {
+  return (
+    <div className="report-approval-editable">
+      <label>
+        <span>Nome</span>
+        <input onChange={(event) => onNameChange(event.target.value)} placeholder="Nome completo" value={name} />
+      </label>
+      <label>
+        <span>Cargo</span>
+        <input onChange={(event) => onRoleChange(event.target.value)} placeholder="Cargo / função" value={role} />
+      </label>
+      <strong>_________________________________</strong>
+    </div>
+  );
+}
+
+function htmlParagraphs(text: string) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join("");
+}
+
 export function ReportsModule({
   projectsData,
   risksData,
@@ -204,7 +363,7 @@ export function ReportsModule({
   const reportClientNames = Array.from(new Set(reportProjects.map((project) => project.clients?.name).filter(Boolean)));
   const reportClients = new Set(reportProjects.map((project) => project.client_id)).size;
   const reportClientLabel = selectedProject?.clients?.name
-    || (reportClientNames.length === 1 ? reportClientNames[0] : `${reportClients} clientes`);
+    || (reportClientNames.length === 1 ? reportClientNames[0] || "Cliente não informado" : `${reportClients} clientes`);
   const generatedAt = new Date().toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -262,6 +421,8 @@ export function ReportsModule({
     ? `A cobertura de resposta ainda requer atenção: ${risksWithoutResponse.length} risco${risksWithoutResponse.length === 1 ? "" : "s"} permanece${risksWithoutResponse.length === 1 ? "" : "m"} sem plano registrado. Recomenda-se completar as ações em formato 5W2H, definir responsáveis e pactuar prazos de acompanhamento.`
     : "Todos os riscos aplicáveis possuem resposta planejada registrada. Recomenda-se manter a revisão periódica das ações, atualizar status e registrar evidências de execução.";
   const recommendationsSuggestion = recommendations.join("\n");
+  const primaryApprovalRoleSuggestion = reportType === "risk_plan" ? "Gerente de Projetos" : "Responsável pelo relatório";
+  const secondaryApprovalRoleSuggestion = reportType === "risk_plan" ? "Responsável pelo cliente" : "Aprovação do cliente";
   const [executiveSummaryText, setExecutiveSummaryText] = useState(executiveSummarySuggestion);
   const [matrixContextText, setMatrixContextText] = useState(matrixContextSuggestion);
   const [detailObjectiveText, setDetailObjectiveText] = useState(detailObjectiveSuggestion);
@@ -269,34 +430,63 @@ export function ReportsModule({
   const [planGuidelinesText, setPlanGuidelinesText] = useState(planGuidelinesSuggestion);
   const [planCoverageText, setPlanCoverageText] = useState(planCoverageSuggestion);
   const [recommendationsText, setRecommendationsText] = useState(recommendationsSuggestion);
+  const [primaryApprovalName, setPrimaryApprovalName] = useState("");
+  const [primaryApprovalRole, setPrimaryApprovalRole] = useState(primaryApprovalRoleSuggestion);
+  const [secondaryApprovalName, setSecondaryApprovalName] = useState("");
+  const [secondaryApprovalRole, setSecondaryApprovalRole] = useState(secondaryApprovalRoleSuggestion);
+  const [savedReport, setSavedReport] = useState<SavedReport | null>(null);
+  const [isReportDirty, setIsReportDirty] = useState(true);
 
   useEffect(() => {
     setExecutiveSummaryText(executiveSummarySuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
   }, [executiveSummarySuggestion]);
 
   useEffect(() => {
     setMatrixContextText(matrixContextSuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
   }, [matrixContextSuggestion]);
 
   useEffect(() => {
     setDetailObjectiveText(detailObjectiveSuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
   }, [detailObjectiveSuggestion]);
 
   useEffect(() => {
     setDetailResponsibilitiesText(detailResponsibilitiesSuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
   }, [detailResponsibilitiesSuggestion]);
 
   useEffect(() => {
     setPlanGuidelinesText(planGuidelinesSuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
   }, [planGuidelinesSuggestion]);
 
   useEffect(() => {
     setPlanCoverageText(planCoverageSuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
   }, [planCoverageSuggestion]);
 
   useEffect(() => {
     setRecommendationsText(recommendationsSuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
   }, [recommendationsSuggestion]);
+
+  useEffect(() => {
+    setPrimaryApprovalName("");
+    setPrimaryApprovalRole(primaryApprovalRoleSuggestion);
+    setSecondaryApprovalName("");
+    setSecondaryApprovalRole(secondaryApprovalRoleSuggestion);
+    setIsReportDirty(true);
+    setSavedReport(null);
+  }, [primaryApprovalRoleSuggestion, secondaryApprovalRoleSuggestion]);
 
   const matrixCells = impactAxis.flatMap((impact) =>
     probabilityAxis.map((probability) => {
@@ -311,6 +501,209 @@ export function ReportsModule({
       };
     })
   );
+  const reportTitle = `${reportTypeLabels[reportType]} - ${selectedProject ? `${selectedProject.project_number} - ${selectedProject.name}` : "Visão consolidada"}`;
+  const fileBaseName = sanitizeFileName(`k-riskhub-${reportTypeLabels[reportType]}-${selectedProject?.project_number || "visao-geral"}-${generatedAt}`);
+
+  function updateReportText(setter: (value: string) => void, value: string) {
+    setter(value);
+    setIsReportDirty(true);
+    setSavedReport(null);
+  }
+
+  function approvalLines(firstLabel: string, secondLabel: string) {
+    return [
+      `${firstLabel}: ${primaryApprovalName || "_________________________________"}${primaryApprovalRole ? ` · ${primaryApprovalRole}` : ""}`,
+      `${secondLabel}: ${secondaryApprovalName || "_________________________________"}${secondaryApprovalRole ? ` · ${secondaryApprovalRole}` : ""}`
+    ];
+  }
+
+  function buildReportText() {
+    const lines = [
+      "K-RiskHub",
+      "Relatório de Gestão de Riscos",
+      reportTitle,
+      "Confidencial",
+      "",
+      `Cliente: ${reportClientLabel}`,
+      `Projeto: ${selectedProject?.name || "Visão consolidada"}`,
+      `Período: ${reportPeriod}`,
+      `Data: ${generatedAt}`,
+      "",
+      `Projetos: ${reportProjects.length}`,
+      `Riscos altos/extremos: ${highRisks.length}`,
+      `Riscos em aberto: ${openRisks.length}`,
+      `Sem resposta: ${risksWithoutResponse.length}`,
+      ""
+    ];
+
+    if (reportType === "executive") {
+      lines.push("1. Resumo executivo", executiveSummaryText, "");
+      lines.push("2. Distribuição por grupo");
+      if (groupSummary.length === 0) {
+        lines.push("Nenhum grupo registrado.");
+      } else {
+        groupSummary.forEach(([group, count]) => lines.push(`${group}: ${count} (${formatPercent(count, reportRisks.length)})`));
+      }
+      lines.push("", "3. Matriz de risco", matrixContextText, "", "4. Riscos prioritários");
+      topRisks.forEach((risk) => {
+        lines.push(
+          `${risk.sequence_number ? `#${risk.sequence_number}` : "-"} ${risk.description}`,
+          `Projeto/grupo/responsável: ${risk.projects?.project_number || "Sem projeto"} · ${risk.group_name} · ${risk.responsible_name || "Sem responsável"}`,
+          `Score/status: ${risk.score || "-"} · ${getRiskSeverity(risk.score)} · ${riskStatusLabels[risk.status]}`,
+          `Plano / resposta planejada (5W2H): ${risk.response_plan?.trim() || "Plano ainda não informado."}`,
+          ""
+        );
+      });
+      lines.push("5. Próximos passos e recomendações", recommendationsText, "", "6. Assinatura e aprovação", ...approvalLines("Responsável pelo relatório", "Aprovação do cliente"));
+    }
+
+    if (reportType === "risk_detail") {
+      lines.push("1. Objetivo do relatório", detailObjectiveText, "", "2. Inventário de riscos e respostas");
+      detailedRisks.forEach((risk) => {
+        lines.push(
+          `${risk.sequence_number ? `#${risk.sequence_number}` : "-"} ${risk.description}`,
+          `Avaliação: ${risk.score || "-"} · ${risk.probability_label || "Prob. n/i"} x ${risk.impact_label || "Impacto n/i"}`,
+          `Resposta: ${risk.response_type ? riskResponseTypeLabels[risk.response_type] : "Não informada"} · ${risk.response_plan || "Sem ação registrada"}`,
+          `Status: ${riskStatusLabels[risk.status]}`,
+          ""
+        );
+      });
+      lines.push("3. Mapa de responsabilidades");
+      responsibilitySummary.forEach((summary) => lines.push(`${summary.owner}: ${summary.count} riscos · grau médio ${summary.averageScore} · ${summary.risks}`));
+      lines.push("", "4. Recomendações operacionais", detailResponsibilitiesText, "", "5. Assinatura e aprovação", ...approvalLines("Responsável pelo relatório", "Aprovação do cliente"));
+    }
+
+    if (reportType === "risk_plan") {
+      lines.push("1. Diretrizes de gestão", planGuidelinesText, "", "Cobertura de resposta", planCoverageText, "");
+      lines.push("2. Matriz de risco", matrixContextText, "", "3. Ações planejadas e respostas");
+      responsePlanRisks.forEach((risk) => {
+        lines.push(
+          `${risk.sequence_number ? `#${risk.sequence_number}` : "-"} ${risk.description}`,
+          `Plano (5W2H): ${risk.response_plan}`,
+          `Resposta/responsável/score: ${risk.response_type ? riskResponseTypeLabels[risk.response_type] : "Resposta não classificada"} · ${risk.responsible_name || "Sem responsável"} · ${risk.score || "-"}`,
+          ""
+        );
+      });
+      lines.push("4. Recomendações de governança", recommendationsText, "", "5. Assinatura e aprovação", ...approvalLines("Gerente de Projetos", "Responsável pelo cliente"));
+    }
+
+    return lines.join("\n");
+  }
+
+  function buildReportHtml() {
+    const approvalHtml = (firstLabel: string, secondLabel: string) => `
+      <h2>${reportType === "executive" ? "6" : reportType === "risk_detail" ? "5" : "5"}. Assinatura e aprovação</h2>
+      <table>
+        <tr><th>Campo</th><th>Nome</th><th>Cargo</th><th>Assinatura</th></tr>
+        <tr>
+          <td>${escapeHtml(firstLabel)}</td>
+          <td>${escapeHtml(primaryApprovalName || "")}</td>
+          <td>${escapeHtml(primaryApprovalRole || "")}</td>
+          <td>_________________________________</td>
+        </tr>
+        <tr>
+          <td>${escapeHtml(secondLabel)}</td>
+          <td>${escapeHtml(secondaryApprovalName || "")}</td>
+          <td>${escapeHtml(secondaryApprovalRole || "")}</td>
+          <td>_________________________________</td>
+        </tr>
+      </table>`;
+    const riskRows = (risks: Risk[], includePlans: boolean) => risks.map((risk) => `
+      <tr>
+        <td>${escapeHtml(risk.sequence_number ? `#${risk.sequence_number}` : "-")}</td>
+        <td>
+          <strong>${escapeHtml(risk.description)}</strong><br>
+          <small>${escapeHtml(risk.projects?.project_number || "Sem projeto")} · ${escapeHtml(risk.group_name)} · ${escapeHtml(risk.responsible_name || "Sem responsável")}</small>
+          ${includePlans ? `<p><strong>Plano / resposta planejada (5W2H):</strong> ${escapeHtml(risk.response_plan?.trim() || "Plano ainda não informado.")}</p>` : ""}
+        </td>
+        <td>${escapeHtml(String(risk.score || "-"))}</td>
+        <td>${escapeHtml(getRiskSeverity(risk.score))}</td>
+        <td>${escapeHtml(riskStatusLabels[risk.status])}</td>
+      </tr>
+    `).join("");
+
+    const sections: string[] = [];
+    if (reportType === "executive") {
+      sections.push(`<h2>1. Resumo executivo</h2>${htmlParagraphs(executiveSummaryText)}`);
+      sections.push(`<h2>2. Distribuição por grupo</h2><table><tr><th>Grupo</th><th>Qtd.</th><th>%</th></tr>${groupSummary.map(([group, count]) => `<tr><td>${escapeHtml(group)}</td><td>${count}</td><td>${formatPercent(count, reportRisks.length)}</td></tr>`).join("") || "<tr><td>Nenhum grupo registrado</td><td>0</td><td>0%</td></tr>"}</table>`);
+      sections.push(`<h2>3. Matriz de risco</h2>${htmlParagraphs(matrixContextText)}`);
+      sections.push(`<h2>4. Riscos prioritários</h2><table><tr><th>ID</th><th>Risco e plano</th><th>Score</th><th>Gravidade</th><th>Status</th></tr>${riskRows(topRisks, true)}</table>`);
+      sections.push(`<h2>5. Próximos passos e recomendações</h2>${htmlParagraphs(recommendationsText)}`);
+      sections.push(approvalHtml("Responsável pelo relatório", "Aprovação do cliente"));
+    }
+
+    if (reportType === "risk_detail") {
+      sections.push(`<h2>1. Objetivo do relatório</h2>${htmlParagraphs(detailObjectiveText)}`);
+      sections.push(`<h2>2. Inventário de riscos e respostas</h2><table><tr><th>ID</th><th>Risco</th><th>Score</th><th>Gravidade</th><th>Status</th></tr>${riskRows(detailedRisks, false)}</table>`);
+      sections.push(`<h2>3. Mapa de responsabilidades</h2><table><tr><th>Responsável</th><th>Riscos</th><th>Grau médio</th><th>Principais riscos</th></tr>${responsibilitySummary.map((summary) => `<tr><td>${escapeHtml(summary.owner)}</td><td>${summary.count}</td><td>${summary.averageScore}</td><td>${escapeHtml(summary.risks)}</td></tr>`).join("") || "<tr><td>Nenhum responsável informado</td><td>0</td><td>-</td><td>-</td></tr>"}</table>`);
+      sections.push(`<h2>4. Recomendações operacionais</h2>${htmlParagraphs(detailResponsibilitiesText)}`);
+      sections.push(approvalHtml("Responsável pelo relatório", "Aprovação do cliente"));
+    }
+
+    if (reportType === "risk_plan") {
+      sections.push(`<h2>1. Diretrizes de gestão</h2>${htmlParagraphs(planGuidelinesText)}<h3>Cobertura de resposta</h3>${htmlParagraphs(planCoverageText)}`);
+      sections.push(`<h2>2. Matriz de risco</h2>${htmlParagraphs(matrixContextText)}`);
+      sections.push(`<h2>3. Ações planejadas e respostas</h2><table><tr><th>ID</th><th>Risco e ação</th><th>Score</th><th>Gravidade</th><th>Status</th></tr>${riskRows(responsePlanRisks, true)}</table>`);
+      sections.push(`<h2>4. Recomendações de governança</h2>${htmlParagraphs(recommendationsText)}`);
+      sections.push(approvalHtml("Gerente de Projetos", "Responsável pelo cliente"));
+    }
+
+    return `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeHtml(reportTitle)}</title>
+          <style>
+            body { color: #172133; font-family: Arial, sans-serif; line-height: 1.45; margin: 44px; }
+            h1 { font-size: 30px; margin: 0 0 8px; }
+            h2 { border-top: 1px solid #d9e1ea; font-size: 18px; margin-top: 28px; padding-top: 16px; }
+            h3 { font-size: 14px; margin-top: 18px; }
+            .cover { border: 1px solid #d9e1ea; margin-bottom: 22px; padding: 24px; }
+            .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px; margin-top: 28px; }
+            .meta div { border-top: 1px solid #d9e1ea; padding-top: 8px; }
+            .label { color: #667085; display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            table { border-collapse: collapse; margin-top: 10px; width: 100%; }
+            th, td { border: 1px solid #d9e1ea; font-size: 12px; padding: 8px; text-align: left; vertical-align: top; }
+            th { background: #f4f7fb; }
+          </style>
+        </head>
+        <body>
+          <section class="cover">
+            <span class="label">K-RiskHub · Confidencial</span>
+            <h1>Relatório de Gestão de Riscos</h1>
+            <strong>${escapeHtml(reportTitle)}</strong>
+            <div class="meta">
+              <div><span class="label">Cliente</span>${escapeHtml(reportClientLabel)}</div>
+              <div><span class="label">Projeto</span>${escapeHtml(selectedProject?.name || "Visão consolidada")}</div>
+              <div><span class="label">Período</span>${escapeHtml(reportPeriod)}</div>
+              <div><span class="label">Data</span>${escapeHtml(generatedAt)}</div>
+            </div>
+          </section>
+          ${sections.join("\n")}
+        </body>
+      </html>`;
+  }
+
+  function saveEditedReport() {
+    const savedAt = new Date().toLocaleString("pt-BR");
+    setSavedReport({
+      fileName: fileBaseName,
+      html: buildReportHtml(),
+      savedAt,
+      text: buildReportText()
+    });
+    setIsReportDirty(false);
+  }
+
+  function downloadWordReport() {
+    if (!savedReport) return;
+    downloadBlob(`${savedReport.fileName}.doc`, "application/msword;charset=utf-8", savedReport.html);
+  }
+
+  function downloadPdfReport() {
+    if (!savedReport) return;
+    downloadBlob(`${savedReport.fileName}.pdf`, "application/pdf", createSimplePdf(savedReport.text));
+  }
 
   return (
     <>
@@ -324,6 +717,18 @@ export function ReportsModule({
             <button className="ghost-button" onClick={onLoadReports} type="button">
               Atualizar
             </button>
+            <button className="button" onClick={saveEditedReport} type="button">
+              <Save size={16} />
+              Salvar versão
+            </button>
+            <button className="ghost-button" disabled={!savedReport || isReportDirty} onClick={downloadWordReport} type="button">
+              <Download size={16} />
+              Word
+            </button>
+            <button className="ghost-button" disabled={!savedReport || isReportDirty} onClick={downloadPdfReport} type="button">
+              <Download size={16} />
+              PDF
+            </button>
             {canRegisterReport ? (
               <button className="button" onClick={onRegisterReport} type="button">
                 <Plus size={16} />
@@ -334,6 +739,11 @@ export function ReportsModule({
         </div>
 
         {reportsError ? <p className="auth-message">{reportsError}</p> : null}
+        <div className={`report-save-status ${savedReport && !isReportDirty ? "saved" : ""}`}>
+          {savedReport && !isReportDirty
+            ? `Versão salva em ${savedReport.savedAt}. Downloads liberados.`
+            : "Edite os campos, salve a versão e depois baixe em Word ou PDF."}
+        </div>
 
         <div className="report-controls">
           <label>
@@ -403,7 +813,7 @@ export function ReportsModule({
             <>
               <ReportSectionTitle number={1}>Resumo executivo</ReportSectionTitle>
               <div className="report-panel document-narrative-panel">
-                <ReportEditableField ariaLabel="Resumo executivo" onChange={setExecutiveSummaryText} rows={5} value={executiveSummaryText} />
+                <ReportEditableField ariaLabel="Resumo executivo" onChange={(value) => updateReportText(setExecutiveSummaryText, value)} rows={5} value={executiveSummaryText} />
               </div>
 
               <ReportSectionTitle number={2}>Distribuição por grupo</ReportSectionTitle>
@@ -437,7 +847,7 @@ export function ReportsModule({
                     <h4>Contexto da matriz</h4>
                     <span>{reportRisks.length} risco{reportRisks.length === 1 ? "" : "s"} no contexto</span>
                   </div>
-                  <ReportEditableField ariaLabel="Contexto da matriz" onChange={setMatrixContextText} rows={6} value={matrixContextText} />
+                  <ReportEditableField ariaLabel="Contexto da matriz" onChange={(value) => updateReportText(setMatrixContextText, value)} rows={6} value={matrixContextText} />
                 </div>
               </div>
 
@@ -446,19 +856,23 @@ export function ReportsModule({
 
               <ReportSectionTitle number={5}>Próximos passos e recomendações</ReportSectionTitle>
               <div className="report-panel">
-                <ReportEditableField ariaLabel="Próximos passos e recomendações" onChange={setRecommendationsText} rows={6} value={recommendationsText} />
+                <ReportEditableField ariaLabel="Próximos passos e recomendações" onChange={(value) => updateReportText(setRecommendationsText, value)} rows={6} value={recommendationsText} />
               </div>
 
               <ReportSectionTitle number={6}>Assinatura e aprovação</ReportSectionTitle>
               <div className="report-approval-grid">
-                <div>
-                  <span>Responsável pelo relatório</span>
-                  <strong>_________________________________</strong>
-                </div>
-                <div>
-                  <span>Aprovação do cliente</span>
-                  <strong>_________________________________</strong>
-                </div>
+                <ReportApprovalField
+                  name={primaryApprovalName}
+                  onNameChange={(value) => updateReportText(setPrimaryApprovalName, value)}
+                  onRoleChange={(value) => updateReportText(setPrimaryApprovalRole, value)}
+                  role={primaryApprovalRole}
+                />
+                <ReportApprovalField
+                  name={secondaryApprovalName}
+                  onNameChange={(value) => updateReportText(setSecondaryApprovalName, value)}
+                  onRoleChange={(value) => updateReportText(setSecondaryApprovalRole, value)}
+                  role={secondaryApprovalRole}
+                />
               </div>
             </>
           ) : null}
@@ -472,7 +886,7 @@ export function ReportsModule({
                     <h4>Inventário detalhado</h4>
                     <span>{detailedRisks.length} de {reportRisks.length} risco{reportRisks.length === 1 ? "" : "s"}</span>
                   </div>
-                  <ReportEditableField ariaLabel="Objetivo do relatório detalhado" onChange={setDetailObjectiveText} rows={6} value={detailObjectiveText} />
+                  <ReportEditableField ariaLabel="Objetivo do relatório detalhado" onChange={(value) => updateReportText(setDetailObjectiveText, value)} rows={6} value={detailObjectiveText} />
                 </div>
                 <RiskMatrixPanel extremeRisksCount={extremeRisks.length} matrixCells={matrixCells} />
               </div>
@@ -543,19 +957,23 @@ export function ReportsModule({
 
               <ReportSectionTitle number={4}>Recomendações operacionais</ReportSectionTitle>
               <div className="report-panel">
-                <ReportEditableField ariaLabel="Recomendações operacionais" onChange={setDetailResponsibilitiesText} rows={6} value={detailResponsibilitiesText} />
+                <ReportEditableField ariaLabel="Recomendações operacionais" onChange={(value) => updateReportText(setDetailResponsibilitiesText, value)} rows={6} value={detailResponsibilitiesText} />
               </div>
 
               <ReportSectionTitle number={5}>Assinatura e aprovação</ReportSectionTitle>
               <div className="report-approval-grid">
-                <div>
-                  <span>Responsável pelo relatório</span>
-                  <strong>_________________________________</strong>
-                </div>
-                <div>
-                  <span>Aprovação do cliente</span>
-                  <strong>_________________________________</strong>
-                </div>
+                <ReportApprovalField
+                  name={primaryApprovalName}
+                  onNameChange={(value) => updateReportText(setPrimaryApprovalName, value)}
+                  onRoleChange={(value) => updateReportText(setPrimaryApprovalRole, value)}
+                  role={primaryApprovalRole}
+                />
+                <ReportApprovalField
+                  name={secondaryApprovalName}
+                  onNameChange={(value) => updateReportText(setSecondaryApprovalName, value)}
+                  onRoleChange={(value) => updateReportText(setSecondaryApprovalRole, value)}
+                  role={secondaryApprovalRole}
+                />
               </div>
             </>
           ) : null}
@@ -569,7 +987,7 @@ export function ReportsModule({
                     <h4>Plano de gestão</h4>
                     <span>{risksWithResponse.length} risco{risksWithResponse.length === 1 ? "" : "s"} com resposta</span>
                   </div>
-                  <ReportEditableField ariaLabel="Diretrizes de gestão" onChange={setPlanGuidelinesText} rows={5} value={planGuidelinesText} />
+                  <ReportEditableField ariaLabel="Diretrizes de gestão" onChange={(value) => updateReportText(setPlanGuidelinesText, value)} rows={5} value={planGuidelinesText} />
                   <div className="report-governance-list">
                     <span>Escala 1 a 5 para probabilidade e impacto</span>
                     <span>Gravidade calculada por score</span>
@@ -594,7 +1012,7 @@ export function ReportsModule({
                     </div>
                   </div>
                   <div className="report-editable-spacer">
-                    <ReportEditableField ariaLabel="Cobertura de resposta" onChange={setPlanCoverageText} rows={5} value={planCoverageText} />
+                    <ReportEditableField ariaLabel="Cobertura de resposta" onChange={(value) => updateReportText(setPlanCoverageText, value)} rows={5} value={planCoverageText} />
                   </div>
                 </div>
               </div>
@@ -608,7 +1026,7 @@ export function ReportsModule({
                     <h4>Contexto da matriz</h4>
                     <span>{reportRisks.length} risco{reportRisks.length === 1 ? "" : "s"} no contexto</span>
                   </div>
-                  <ReportEditableField ariaLabel="Contexto da matriz no plano de gestão" onChange={setMatrixContextText} rows={6} value={matrixContextText} />
+                  <ReportEditableField ariaLabel="Contexto da matriz no plano de gestão" onChange={(value) => updateReportText(setMatrixContextText, value)} rows={6} value={matrixContextText} />
                 </div>
               </div>
 
@@ -643,19 +1061,23 @@ export function ReportsModule({
 
               <ReportSectionTitle number={4}>Recomendações de governança</ReportSectionTitle>
               <div className="report-panel">
-                <ReportEditableField ariaLabel="Recomendações de governança" onChange={setRecommendationsText} rows={6} value={recommendationsText} />
+                <ReportEditableField ariaLabel="Recomendações de governança" onChange={(value) => updateReportText(setRecommendationsText, value)} rows={6} value={recommendationsText} />
               </div>
 
               <ReportSectionTitle number={5}>Assinatura e aprovação</ReportSectionTitle>
               <div className="report-approval-grid">
-                <div>
-                  <span>Gerente de Projetos</span>
-                  <strong>_________________________________</strong>
-                </div>
-                <div>
-                  <span>Responsável pelo cliente</span>
-                  <strong>_________________________________</strong>
-                </div>
+                <ReportApprovalField
+                  name={primaryApprovalName}
+                  onNameChange={(value) => updateReportText(setPrimaryApprovalName, value)}
+                  onRoleChange={(value) => updateReportText(setPrimaryApprovalRole, value)}
+                  role={primaryApprovalRole}
+                />
+                <ReportApprovalField
+                  name={secondaryApprovalName}
+                  onNameChange={(value) => updateReportText(setSecondaryApprovalName, value)}
+                  onRoleChange={(value) => updateReportText(setSecondaryApprovalRole, value)}
+                  role={secondaryApprovalRole}
+                />
               </div>
             </>
           ) : null}
