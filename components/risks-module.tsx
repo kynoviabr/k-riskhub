@@ -207,92 +207,95 @@ export function RisksModule({
               <div>
                 <p className="eyebrow">Risco</p>
                 <h3 id="risk-details-title">{selectedRisk.sequence_number ? `#${selectedRisk.sequence_number}` : "Detalhes do risco"}</h3>
+                <span className="modal-subtitle">{selectedRisk.projects?.name || "Projeto não informado"}</span>
               </div>
               <button className="icon-button" aria-label="Fechar" onClick={onCloseRiskDetails}>
                 <X size={18} />
               </button>
             </div>
 
-            <div className="detail-summary">
-              <div>
-                <span>Projeto</span>
-                <strong>{selectedRisk.projects?.project_number || "Não informado"}</strong>
+            <div className="risk-details-body">
+              <div className="risk-detail-hero">
+                <span>Descrição</span>
+                <p>{selectedRisk.description}</p>
               </div>
-              <div>
-                <span>Score</span>
-                <strong>{selectedRisk.score || "Não avaliado"}</strong>
-              </div>
-              <div>
-                <span>Status</span>
-                <strong>{riskStatusLabels[selectedRisk.status]}</strong>
-              </div>
-            </div>
 
-            <div className="detail-summary">
-              <div>
-                <span>Grupo</span>
-                <strong>{selectedRisk.group_name}</strong>
+              <div className="risk-detail-metrics">
+                <div>
+                  <span>Projeto</span>
+                  <strong>{selectedRisk.projects?.project_number || "Não informado"}</strong>
+                </div>
+                <div>
+                  <span>Score</span>
+                  <strong>{selectedRisk.score || "Não avaliado"}</strong>
+                </div>
+                <div>
+                  <span>Gravidade</span>
+                  <SeverityBadge score={selectedRisk.score} />
+                </div>
+                <div>
+                  <span>Status</span>
+                  <StatusPill status={riskStatusLabels[selectedRisk.status]} />
+                </div>
               </div>
-              <div>
-                <span>Data identificação</span>
-                <strong>{selectedRisk.identified_on ? new Date(selectedRisk.identified_on).toLocaleDateString("pt-BR") : "Sem data"}</strong>
-              </div>
-              <div>
-                <span>Data encerramento</span>
-                <strong>{selectedRisk.closed_on ? new Date(selectedRisk.closed_on).toLocaleDateString("pt-BR") : "Em aberto"}</strong>
-              </div>
-            </div>
 
-            <div className="detail-summary">
-              <div>
-                <span>Probabilidade</span>
-                <strong>{selectedRisk.probability_score || "-"} - {selectedRisk.probability_label || "Não informada"}</strong>
+              <div className="risk-detail-grid">
+                <div className="risk-detail-card">
+                  <span>Grupo</span>
+                  <strong>{selectedRisk.group_name}</strong>
+                </div>
+                <div className="risk-detail-card">
+                  <span>Origem</span>
+                  <strong>{selectedRisk.origin || "Não informada"}</strong>
+                </div>
+                <div className="risk-detail-card">
+                  <span>Impacto principal</span>
+                  <strong>{selectedRisk.main_impact || "Não informado"}</strong>
+                </div>
+                <div className="risk-detail-card">
+                  <span>Probabilidade</span>
+                  <strong>{selectedRisk.probability_score || "-"} - {selectedRisk.probability_label || "Não informada"}</strong>
+                </div>
+                <div className="risk-detail-card">
+                  <span>Impacto</span>
+                  <strong>{selectedRisk.impact_score || "-"} - {selectedRisk.impact_label || "Não informado"}</strong>
+                </div>
+                <div className="risk-detail-card">
+                  <span>Data identificação</span>
+                  <strong>{selectedRisk.identified_on ? new Date(selectedRisk.identified_on).toLocaleDateString("pt-BR") : "Sem data"}</strong>
+                </div>
+                <div className="risk-detail-card">
+                  <span>Data encerramento</span>
+                  <strong>{selectedRisk.closed_on ? new Date(selectedRisk.closed_on).toLocaleDateString("pt-BR") : "Em aberto"}</strong>
+                </div>
+                <div className="risk-detail-card">
+                  <span>Resposta</span>
+                  <strong>{selectedRisk.response_type ? riskResponseTypeLabels[selectedRisk.response_type] : "Não informada"}</strong>
+                </div>
               </div>
-              <div>
-                <span>Impacto</span>
-                <strong>{selectedRisk.impact_score || "-"} - {selectedRisk.impact_label || "Não informado"}</strong>
-              </div>
-            </div>
 
-            <div className="detail-block">
-              <span>Descrição</span>
-              <p>{selectedRisk.description}</p>
-            </div>
-            <div className="detail-block">
-              <span>Causa raiz</span>
-              <p>{selectedRisk.root_cause || "Não informada."}</p>
-            </div>
-            <div className="detail-block">
-              <span>Origem</span>
-              <p>{selectedRisk.origin || "Não informada."}</p>
-            </div>
-            <div className="detail-block">
-              <span>Impacto principal</span>
-              <p>{selectedRisk.main_impact || "Não informado."}</p>
-            </div>
-            <div className="detail-block">
-              <span>Tipo de resposta ao risco</span>
-              <p>{selectedRisk.response_type ? riskResponseTypeLabels[selectedRisk.response_type] : "Não informado."}</p>
-            </div>
-            <div className="detail-block">
-              <span>Ação / resposta planejada (5W2H)</span>
-              <p>{selectedRisk.response_plan || "Não informada."}</p>
-            </div>
-            <div className="detail-block">
-              <span>Referência externa</span>
-              {selectedRisk.external_reference_url ? (
-                <p>
-                  <a href={selectedRisk.external_reference_url} rel="noreferrer" target="_blank">
-                    {selectedRisk.external_tool || "Ferramenta externa"}
-                    {selectedRisk.external_reference_id ? ` - ${selectedRisk.external_reference_id}` : ""}
-                  </a>
-                </p>
-              ) : (
-                <p>
-                  {[selectedRisk.external_tool, selectedRisk.external_reference_id].filter(Boolean).join(" - ") ||
-                    "Nenhuma referência externa informada."}
-                </p>
-              )}
+              <div className="risk-detail-grid narrative-grid">
+                <div className="risk-detail-card narrative-card">
+                  <span>Ação / resposta planejada (5W2H)</span>
+                  <p>{selectedRisk.response_plan || "Não informada."}</p>
+                </div>
+                <div className="risk-detail-card narrative-card">
+                  <span>Referência externa</span>
+                  {selectedRisk.external_reference_url ? (
+                    <p>
+                      <a href={selectedRisk.external_reference_url} rel="noreferrer" target="_blank">
+                        {selectedRisk.external_tool || "Ferramenta externa"}
+                        {selectedRisk.external_reference_id ? ` - ${selectedRisk.external_reference_id}` : ""}
+                      </a>
+                    </p>
+                  ) : (
+                    <p>
+                      {[selectedRisk.external_tool, selectedRisk.external_reference_id].filter(Boolean).join(" - ") ||
+                        "Nenhuma referência externa informada."}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
 
             {isAdminProfile ? (
@@ -380,15 +383,6 @@ export function RisksModule({
                       value={riskForm.description}
                       onChange={(event) => onRiskFormChange((current) => ({ ...current, description: event.target.value }))}
                       placeholder="Descreva o evento de risco"
-                    />
-                  </label>
-                  <label className="span-3">
-                    Causa raiz
-                    <textarea
-                      className="compact-textarea"
-                      value={riskForm.root_cause}
-                      onChange={(event) => onRiskFormChange((current) => ({ ...current, root_cause: event.target.value }))}
-                      placeholder="Informe a causa raiz ou hipótese principal do risco"
                     />
                   </label>
                 </div>

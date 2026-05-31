@@ -871,6 +871,18 @@ small {
   width: min(680px, 100%);
 }
 
+.risk-details-modal {
+  width: min(940px, 100%);
+  padding: 0;
+  overflow: hidden;
+}
+
+.risk-details-modal .modal-header {
+  margin: 0;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
 .project-details-modal,
 .project-form-modal,
 .professional-details-modal,
@@ -953,6 +965,83 @@ small {
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   backdrop-filter: blur(12px);
+}
+
+.risk-details-body {
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 166px);
+  overflow: auto;
+  padding: 16px 22px 0;
+}
+
+.risk-detail-hero,
+.risk-detail-card,
+.risk-detail-metrics div {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.risk-detail-hero {
+  padding: 14px;
+  background: var(--panel);
+}
+
+.risk-detail-hero span,
+.risk-detail-card span,
+.risk-detail-metrics span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.risk-detail-hero p,
+.risk-detail-card p {
+  margin: 7px 0 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.risk-detail-metrics {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, minmax(120px, 0.6fr));
+  gap: 10px;
+}
+
+.risk-detail-metrics div,
+.risk-detail-card {
+  display: grid;
+  gap: 5px;
+  align-content: center;
+  min-height: 66px;
+  padding: 10px 12px;
+}
+
+.risk-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.risk-detail-card strong {
+  overflow-wrap: anywhere;
+}
+
+.narrative-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  padding-bottom: 16px;
+}
+
+.narrative-card {
+  align-content: start;
+  min-height: 96px;
+}
+
+.narrative-card a {
+  color: var(--primary-2);
+  font-weight: 800;
 }
 
 .delete-confirmation-modal {
@@ -1281,8 +1370,15 @@ small {
     width: min(720px, 100%);
   }
 
+  .risk-details-modal {
+    width: min(720px, 100%);
+  }
+
+  .risk-detail-metrics,
+  .risk-detail-grid,
   .risk-form-grid,
-  .risk-assessment-grid {
+  .risk-assessment-grid,
+  .narrative-grid {
     grid-template-columns: 1fr;
   }
 
