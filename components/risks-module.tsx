@@ -11,11 +11,12 @@ import {
   TriangleAlert,
   X
 } from "lucide-react";
-import type { Project, Risk, RiskForm, RiskStatus } from "@/lib/domain";
+import type { Project, Risk, RiskForm, RiskResponseType, RiskStatus } from "@/lib/domain";
 import {
   getRiskSeverity,
   projectPhaseOptions,
   riskGroupOptions,
+  riskResponseTypeLabels,
   riskScoreLabels,
   riskStatusLabels
 } from "@/lib/domain";
@@ -250,7 +251,11 @@ export function RisksModule({
               <p>{selectedRisk.main_impact || "Não informado."}</p>
             </div>
             <div className="detail-block">
-              <span>Resposta planejada</span>
+              <span>Tipo de resposta ao risco</span>
+              <p>{selectedRisk.response_type ? riskResponseTypeLabels[selectedRisk.response_type] : "Não informado."}</p>
+            </div>
+            <div className="detail-block">
+              <span>Ação / resposta planejada</span>
               <p>{selectedRisk.response_plan || "Não informada."}</p>
             </div>
 
@@ -395,7 +400,18 @@ export function RisksModule({
                 />
               </label>
               <label>
-                Resposta planejada
+                Tipo de resposta ao risco
+                <select
+                  value={riskForm.response_type}
+                  onChange={(event) => onRiskFormChange((current) => ({ ...current, response_type: event.target.value as RiskResponseType }))}
+                >
+                  {Object.entries(riskResponseTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Ação / resposta planejada
                 <textarea
                   value={riskForm.response_plan}
                   onChange={(event) => onRiskFormChange((current) => ({ ...current, response_plan: event.target.value }))}

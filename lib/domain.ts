@@ -94,6 +94,7 @@ export type Project = {
 };
 
 export type RiskStatus = "open" | "in_progress" | "mitigated" | "closed" | "accepted";
+export type RiskResponseType = "avoid" | "transfer" | "mitigate" | "accept" | "escalate";
 
 export type Risk = {
   id: string;
@@ -109,6 +110,7 @@ export type Risk = {
   probability_score: number | null;
   impact_label: string | null;
   impact_score: number | null;
+  response_type: RiskResponseType | null;
   response_plan: string | null;
   responsible_id: string | null;
   responsible_name: string | null;
@@ -132,6 +134,7 @@ export type RiskForm = {
   main_impact: string;
   probability_score: string;
   impact_score: string;
+  response_type: RiskResponseType;
   response_plan: string;
   responsible_name: string;
   status: RiskStatus;
@@ -186,6 +189,7 @@ export const emptyRiskForm: RiskForm = {
   main_impact: "",
   probability_score: "3",
   impact_score: "3",
+  response_type: "mitigate",
   response_plan: "",
   responsible_name: "",
   status: "open"
@@ -225,6 +229,14 @@ export const riskStatusLabels: Record<RiskStatus, string> = {
   mitigated: "Mitigado",
   closed: "Fechado",
   accepted: "Aceito"
+};
+
+export const riskResponseTypeLabels: Record<RiskResponseType, string> = {
+  avoid: "Avoid",
+  transfer: "Transfer",
+  mitigate: "Mitigate",
+  accept: "Accept",
+  escalate: "Escalate"
 };
 
 export const riskGroupOptions = [

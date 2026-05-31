@@ -337,7 +337,7 @@ export default function Home() {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("risks")
-      .select("id, project_id, sequence_number, group_name, phase, description, origin, identified_on, main_impact, probability_label, probability_score, impact_label, impact_score, response_plan, responsible_id, responsible_name, status, closed_on, created_by, created_at, deleted_at, score, projects(id, project_number, name, clients(id, name))")
+      .select("id, project_id, sequence_number, group_name, phase, description, origin, identified_on, main_impact, probability_label, probability_score, impact_label, impact_score, response_type, response_plan, responsible_id, responsible_name, status, closed_on, created_by, created_at, deleted_at, score, projects(id, project_number, name, clients(id, name))")
       .is("deleted_at", null)
       .order("score", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
@@ -1231,6 +1231,7 @@ export default function Home() {
       main_impact: risk.main_impact || "",
       probability_score: String(risk.probability_score || 3),
       impact_score: String(risk.impact_score || 3),
+      response_type: risk.response_type || "mitigate",
       response_plan: risk.response_plan || "",
       responsible_name: risk.responsible_name || "",
       status: risk.status
@@ -1285,6 +1286,7 @@ export default function Home() {
       probability_label: riskScoreLabels[probabilityScore],
       impact_score: impactScore,
       impact_label: riskScoreLabels[impactScore],
+      response_type: riskForm.response_type,
       response_plan: riskForm.response_plan.trim() || null,
       responsible_name: riskForm.responsible_name.trim() || null,
       status: riskForm.status,
